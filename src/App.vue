@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// VideoCaptor 主页面：组装各子组件
+// VideoCaptor 主页面：串联数据流
 import { ref } from "vue";
 import FileSelector from "./components/FileSelector.vue";
 import PresetSelector from "./components/PresetSelector.vue";
@@ -8,11 +8,26 @@ import ProgressView from "./components/ProgressView.vue";
 import ResultView from "./components/ResultView.vue";
 
 const selectedPreset = ref("");
+const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
+const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
 
-function onGenerate() {
-  // 占位：触发 Tauri invoke 生成 GIF
-  console.log("占位：调用 Tauri invoke('generate_gif')");
+function onPresetChange(preset: string) {
+  selectedPreset.value = preset;
+}
+
+async function onGenerate() {
+  const file = fileSelectorRef.value?.filePath ?? "";
+  const start = fileSelectorRef.value?.startTime ?? "00:00:00";
+  const end = fileSelectorRef.value?.endTime ?? "00:00:10";
+  const params = paramPanelRef.value?.getParams() ?? {};
+
+  if (!file) {
+    console.log("错误: 未选择视频文件");
+    return;
+  }
+
+  console.log("生成参数", { preset: selectedPreset.value, file, start, end, params });
   progressRef.value?.simulateProgress();
 }
 </script>
@@ -24,9 +39,9 @@ function onGenerate() {
     </header>
 
     <main class="main">
-      <FileSelector />
-      <PresetSelector @change="(p: string) => (selectedPreset = p)" />
-      <ParamPanel :preset="selectedPreset" />
+      <FileSelector ref="fileSelectorRef" />
+      <PresetSelector @change="onPresetChange" />
+      <ParamPanel ref="paramPanelRef" :preset="selectedPreset" />
 
       <div class="action-area">
         <button type="button" class="generate-btn" @click="onGenerate">

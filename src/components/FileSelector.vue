@@ -6,8 +6,19 @@ const filePath = ref("");
 const startTime = ref("00:00:00");
 const endTime = ref("00:00:10");
 
-function onSelectFile() {
-  console.log("占位：触发 Tauri 文件选择器");
+async function onSelectFile() {
+  try {
+    const dialog = await import("@tauri-apps/plugin-dialog");
+    const selected = await dialog.open({
+      filters: [{ name: "视频", extensions: ["mp4", "mkv", "avi", "webm", "mov"] }],
+    });
+    if (selected && typeof selected === "string") {
+      filePath.value = selected;
+    }
+  } catch {
+    // dialog 插件不可用，fallback 到手动输入
+    console.log("文件选择器插件不可用，使用手动输入");
+  }
 }
 
 defineExpose({ filePath, startTime, endTime });
