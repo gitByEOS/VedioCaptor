@@ -3,6 +3,7 @@ use tauri::AppHandle;
 use crate::lua_runtime::LuaRuntime;
 use crate::pipeline_executor::Step;
 use crate::pipeline_executor::execute_pipeline_sync_with_progress;
+use crate::types::ConversionResult;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -16,7 +17,7 @@ pub async fn execute_conversion(
     start_time: String,
     end_time: String,
     output_path: String,
-) -> Result<String, String> {
+) -> Result<ConversionResult, String> {
     log::info("开始转换", &format!("预设={}, 输入={}", preset_path, input_path));
 
     // 1. 加载 Lua 预设
@@ -38,8 +39,14 @@ pub async fn execute_conversion(
         return Err("管线执行失败".to_string());
     }
 
+    // 5. 调用 on_complete 后处理
+    let message = runtime.on_complete(&output_path, &params).unwrap_or(None);
+
     log::info("转换完成", &output_path);
-    Ok(output_path)
+    Ok(ConversionResult {
+        output_path,
+        message,
+    })
 }
 
 /// 将起止时间注入为 ffmpeg 的 -ss/-to 参数

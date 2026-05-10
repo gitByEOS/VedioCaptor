@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core"
 
 export interface ValidateResult { ok: boolean; error?: string }
+export interface ConversionResult { output_path: string; message?: string }
 
 // 调用后端的 validate 命令
 export async function validateParams(preset: string, params: Record<string, any>, inputPath: string): Promise<ValidateResult> {
@@ -16,8 +17,8 @@ export async function executeConversion(
   startTime: string,
   endTime: string,
   outputPath: string,
-): Promise<string> {
-  return invoke<string>("execute_conversion", {
+): Promise<ConversionResult> {
+  return invoke<ConversionResult>("execute_conversion", {
     presetPath,
     params,
     inputPath,

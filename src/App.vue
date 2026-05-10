@@ -2,7 +2,7 @@
 // VideoCaptor 主页面：串联数据流
 import { ref, onMounted, onUnmounted } from "vue";
 import { listen } from "@tauri-apps/api/event";
-import { validateParams, executeConversion } from "./api";
+import { validateParams, executeConversion, type ConversionResult } from "./api";
 import FileSelector from "./components/FileSelector.vue";
 import PresetSelector from "./components/PresetSelector.vue";
 import ParamPanel from "./components/ParamPanel.vue";
@@ -14,6 +14,7 @@ const validateError = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
 const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
+const resultRef = ref<ConversionResult | null>(null);
 
 let unlisten: (() => void) | null = null;
 
@@ -70,8 +71,8 @@ async function onGenerate() {
 
   try {
     progressRef.value?.resetProgress();
-    const output = await executeConversion(presetPath, params, file, start, end, outputPath);
-    console.log("转换完成", output);
+    const conversionResult = await executeConversion(presetPath, params, file, start, end, outputPath);
+    resultRef.value = conversionResult;
     progressRef.value?.markComplete();
   } catch (err) {
     validateError.value = `转换失败: ${err}`;
@@ -98,7 +99,11 @@ async function onGenerate() {
       </div>
 
       <ProgressView ref="progressRef" />
-      <ResultView />
+      <ResultView
+        v-if="resultRef"
+        :gif-path="resultRef.output_path"
+        :message="resultRef.message"
+      />
     </main>
   </div>
 </template>

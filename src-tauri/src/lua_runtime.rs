@@ -136,6 +136,35 @@ impl LuaRuntime {
         parse_pipeline_steps(&result)
     }
 
+    /// 调用 Lua 的 on_complete 获取后处理消息
+    pub fn on_complete(&self, output_path: &str, params: &HashMap<String, serde_json::Value>) -> Result<Option<String>, String> {
+        let func: Result<mlua::Function, _> = self.lua.globals().get("on_complete");
+        let func = match func {
+            Ok(f) => f,
+            Err(_) => return Ok(None),
+        };
+
+        let params_table = self.build_params_table(params);
+        let output_str = self.lua.create_string(output_path).map_err(|e| format!("创建输出路径字符串失败: {}", e))?;
+
+        let result: mlua::Value = func
+            .call((output_str, params_table))
+            .map_err(|e| format!("调用 on_complete 失败: {}", e))?;
+
+        match result {
+            Value::String(s) => {
+                let msg = s.to_str().map(|b| b.to_string()).unwrap_or_default();
+                if msg.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(msg))
+                }
+            }
+            Value::Nil => Ok(None),
+            _ => Ok(None),
+        }
+    }
+
     /// 调用 Lua 的 parse_progress 解析 ffmpeg stderr 行
     /// 若 Lua 中未定义该函数或解析失败，返回默认进度 0
     pub fn parse_progress(&self, line: &str, step_index: usize, step_name: &str) -> ProgressEvent {

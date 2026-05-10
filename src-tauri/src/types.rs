@@ -55,3 +55,10 @@ pub struct PresetModule {
     pub name: String,
     pub lua_source: String,
 }
+
+/// 转换结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversionResult {
+    pub output_path: String,
+    pub message: Option<String>,
+}
