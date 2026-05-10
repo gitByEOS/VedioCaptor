@@ -30,8 +30,7 @@ async function loadControls(presetName: string) {
   loading.value = true;
   errorMsg.value = "";
   try {
-    const path = `presets/${presetName}.lua`;
-    const defs = await invoke<ControlDef[]>("get_preset_controls", { presetPath: path });
+    const defs = await invoke<ControlDef[]>("get_preset_controls", { presetName });
     controls.value = defs;
     paramValues.value = buildDefaultValues(defs);
   } catch (err: unknown) {

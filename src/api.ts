@@ -11,7 +11,7 @@ export async function validateParams(preset: string, params: Record<string, any>
 
 // 调用后端的 execute_conversion 命令
 export async function executeConversion(
-  presetPath: string,
+  presetName: string,
   params: Record<string, any>,
   inputPath: string,
   startTime: string,
@@ -19,7 +19,7 @@ export async function executeConversion(
   outputPath: string,
 ): Promise<ConversionResult> {
   return invoke<ConversionResult>("execute_conversion", {
-    presetPath,
+    presetName,
     params,
     inputPath,
     startTime,

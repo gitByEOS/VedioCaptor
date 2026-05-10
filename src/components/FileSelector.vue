@@ -2,6 +2,8 @@
 import { ref, computed } from "vue";
 import { timeToSeconds, isValidTimeRange, secondsToTime } from "../utils";
 
+import { open } from "@tauri-apps/plugin-dialog";
+
 const filePath = ref("");
 const startTime = ref("00:00:00");
 const endTime = ref("00:00:10");
@@ -13,16 +15,19 @@ const durationSeconds = computed(() => duration.value ? timeToSeconds(duration.v
 async function onSelectFile() {
   errorMsg.value = "";
   try {
-    const dialog = await import("@tauri-apps/plugin-dialog");
-    const selected = await dialog.open({
+    const selected = await open({
       filters: [{ name: "视频", extensions: ["mp4", "mkv", "avi", "webm", "mov"] }],
+      multiple: false,
     });
     if (selected && typeof selected === "string") {
       filePath.value = selected;
       endTime.value = "00:00:10";
+    } else if (selected && typeof selected === "object" && "path" in selected) {
+      filePath.value = selected.path;
+      endTime.value = "00:00:10";
     }
-  } catch {
-    console.log("文件选择器插件不可用，使用手动输入");
+  } catch (err) {
+    console.error("文件选择失败:", err);
   }
 }
 

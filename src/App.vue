@@ -99,12 +99,12 @@ async function onGenerate() {
   setStatus("converting");
   progressRef.value?.resetProgress();
 
-  const presetPath = `presets/${selectedPreset.value}.lua`;
+  const presetName = selectedPreset.value;
   const outputPath = file.replace(/\.[^.]+$/, "") + ".gif";
 
   try {
     const conversionResult = await executeConversion(
-      presetPath, params, file, start, end, outputPath,
+      presetName, params, file, start, end, outputPath,
     );
     resultRef.value = conversionResult;
     progressRef.value?.markComplete();

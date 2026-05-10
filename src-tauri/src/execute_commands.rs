@@ -1,5 +1,6 @@
 use tauri::AppHandle;
 
+use crate::commands_presets::resolve_presets_dir;
 use crate::lua_runtime::LuaRuntime;
 use crate::pipeline_executor::Step;
 use crate::pipeline_executor::execute_pipeline_sync_with_progress;
@@ -10,14 +11,17 @@ use std::collections::HashMap;
 /// 执行完整转换管线：加载预设 -> 构建命令 -> 执行
 #[tauri::command]
 pub async fn execute_conversion(
-    app_handle: AppHandle,
-    preset_path: String,
+    _app_handle: AppHandle,
+    preset_name: String,
     params: HashMap<String, Value>,
     input_path: String,
     start_time: String,
     end_time: String,
     output_path: String,
 ) -> Result<ConversionResult, String> {
+    let dir = resolve_presets_dir();
+    let preset_path = format!("{}/{}.lua", dir, preset_name);
+
     log::info("开始转换", &format!("预设={}, 输入={}", preset_path, input_path));
 
     // 1. 加载 Lua 预设
@@ -33,7 +37,7 @@ pub async fn execute_conversion(
     inject_time_range(&mut steps, &start_time, &end_time);
 
     // 4. 同步执行管线（带进度推送）
-    let (success, _log) = execute_pipeline_sync_with_progress(app_handle.clone(), &runtime, steps);
+    let (success, _log) = execute_pipeline_sync_with_progress(_app_handle.clone(), &runtime, steps);
 
     if !success {
         return Err("管线执行失败".to_string());

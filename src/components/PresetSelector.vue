@@ -14,7 +14,7 @@ const emit = defineEmits<{
 
 async function loadPresets() {
   try {
-    const list = await invoke<string[]>("list_presets", { dir: "presets/" });
+    const list = await invoke<string[]>("list_presets", {});
     presets.value = list;
     errorMsg.value = "";
   } catch (err: unknown) {
