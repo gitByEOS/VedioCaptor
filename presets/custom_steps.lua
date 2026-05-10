@@ -3,14 +3,14 @@
 
 function get_controls()
     return {
-        亮度 = {
+        brightness = {
             type = "slider",
             label = "亮度",
             min = -100,
             max = 100,
             default = 0,
         },
-        对比度 = {
+        contrast = {
             type = "slider",
             label = "对比度",
             min = -100,
@@ -21,8 +21,8 @@ function get_controls()
 end
 
 function validate(params, _info)
-    local brightness = params["亮度"] or 0
-    local contrast = params["对比度"] or 0
+    local brightness = params["brightness"] or 0
+    local contrast = params["contrast"] or 0
 
     if brightness < -100 or brightness > 100 then
         return { ok = false, error = "亮度范围为 -100 到 100" }
@@ -35,8 +35,8 @@ function validate(params, _info)
 end
 
 function build_command_pipeline(params, input_path, output_path)
-    local brightness = params["亮度"] or 0
-    local contrast = params["对比度"] or 0
+    local brightness = params["brightness"] or 0
+    local contrast = params["contrast"] or 0
 
     -- FFmpeg eq 滤镜参数: brightness=-1.0~1.0, contrast=0.0~2.0
     local eq_brightness = brightness / 100.0

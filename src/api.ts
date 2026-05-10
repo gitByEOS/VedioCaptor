@@ -6,7 +6,7 @@ export interface ConversionResult { output_path: string; message?: string }
 
 // 调用后端的 validate 命令
 export async function validateParams(preset: string, params: Record<string, any>, inputPath: string): Promise<ValidateResult> {
-  return invoke<ValidateResult>("validate", { presetPath: `presets/${preset}.lua`, params, inputPath })
+  return invoke<ValidateResult>("validate", { presetName: preset, params, inputPath })
 }
 
 // 调用后端的 execute_conversion 命令

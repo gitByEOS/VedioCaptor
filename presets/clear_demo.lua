@@ -3,21 +3,21 @@
 
 function get_controls()
     return {
-        帧率 = {
+        fps = {
             type = "slider",
             label = "帧率",
             min = 10,
             max = 60,
             default = 30,
         },
-        宽度 = {
+        width = {
             type = "slider",
             label = "宽度",
             min = 640,
             max = 1920,
             default = 1280,
         },
-        质量 = {
+        quality = {
             type = "select",
             label = "质量",
             values = { "高", "中", "低" },
@@ -31,9 +31,9 @@ function validate(_params, _info)
 end
 
 function build_command_pipeline(params, input_path, output_path)
-    local width = params["宽度"] or 1280
-    local fps = params["帧率"] or 30
-    local quality = params["质量"] or "高"
+    local width = params["width"] or 1280
+    local fps = params["fps"] or 30
+    local quality = params["quality"] or "高"
 
     -- 质量映射为 CRF 参数
     local crf
