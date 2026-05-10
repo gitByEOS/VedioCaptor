@@ -18,10 +18,16 @@ const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
 const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
 const resultRef = ref<ConversionResult | null>(null);
+const logMessages = ref<string[]>([]);
 
 let unlisten: (() => void) | null = null;
 
 const isConverting = computed(() => status.value === "converting" || status.value === "validating");
+
+function addLog(msg: string) {
+  const timestamp = new Date().toLocaleTimeString();
+  logMessages.value.push(`[${timestamp}] ${msg}`);
+}
 
 onMounted(async () => {
   unlisten = await listen("conversion-progress", (event) => {
@@ -33,6 +39,9 @@ onMounted(async () => {
       progress: payload.progress as number,
       message: payload.message as string,
     });
+    if (payload.message) {
+      addLog(payload.message as string);
+    }
   });
 });
 
@@ -42,6 +51,13 @@ onUnmounted(() => {
 
 function setStatus(s: AppStatus) {
   status.value = s;
+  if (s === "validating") {
+    addLog("参数校验中...");
+  } else if (s === "converting") {
+    addLog("开始转换...");
+  } else if (s === "done") {
+    addLog("转换完成");
+  }
 }
 
 function onPresetChange(preset: string) {
@@ -62,6 +78,7 @@ function collectForm() {
 
 function showValidation(msg: string) {
   errorInfo.value = msg;
+  addLog(`错误: ${msg}`);
   paramPanelRef.value?.setValidateError(msg);
   setStatus("error");
 }
@@ -111,6 +128,7 @@ async function onGenerate() {
     setStatus("done");
   } catch (err) {
     errorInfo.value = `转换失败: ${err}`;
+    addLog(`转换失败: ${err}`);
     progressRef.value?.markComplete();
     setStatus("error");
   }
@@ -121,10 +139,6 @@ async function onGenerate() {
   <div class="app">
     <header class="header">
       <h1>VideoCaptor</h1>
-      <div v-if="errorInfo" class="error-banner">{{ errorInfo }}</div>
-      <div v-else-if="status === 'validating'" class="status-hint">校验中...</div>
-      <div v-else-if="status === 'converting'" class="status-hint">转换中...</div>
-      <div v-else-if="status === 'done'" class="status-hint">转换完成</div>
     </header>
 
     <main class="main">
@@ -151,6 +165,12 @@ async function onGenerate() {
         :message="resultRef.message"
       />
     </main>
+
+    <div v-if="logMessages.length > 0" class="log-box">
+      <div v-for="(log, index) in logMessages" :key="index" class="log-item">
+        {{ log }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -168,20 +188,6 @@ async function onGenerate() {
   font-size: 22px;
   color: #222;
   margin: 0;
-}
-.error-banner {
-  margin-top: 8px;
-  padding: 8px 12px;
-  background: #fff5f5;
-  border: 1px solid #fed7d7;
-  border-radius: 6px;
-  color: #e53e3e;
-  font-size: 13px;
-}
-.status-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #888;
 }
 .main {
   display: flex;
@@ -207,6 +213,23 @@ async function onGenerate() {
 .generate-btn.disabled {
   background: #999;
   cursor: not-allowed;
+}
+.log-box {
+  margin-top: 24px;
+  padding: 12px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  font-family: "SF Mono", Monaco, monospace;
+  font-size: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.log-item {
+  color: #888;
+  line-height: 1.6;
+}
+.log-item:last-child {
+  color: #ccc;
 }
 </style>
 
