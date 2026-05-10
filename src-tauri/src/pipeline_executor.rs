@@ -1,4 +1,5 @@
 use std::sync::mpsc;
+use std::path::PathBuf;
 
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -8,12 +9,24 @@ use crate::types::ProgressEvent;
 
 /// 获取应用内 ffmpeg 资源路径
 fn resolve_ffmpeg_path(app: &AppHandle) -> Option<String> {
+    // 生产模式：从资源目录获取
     if let Ok(resource_dir) = app.path().resource_dir() {
         let ffmpeg = resource_dir.join("ffmpeg");
         if ffmpeg.exists() {
             return Some(ffmpeg.to_string_lossy().to_string());
         }
     }
+
+    // 开发模式：从 node_modules 获取
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        let manifest_path = PathBuf::from(manifest_dir);
+        let project_dir = manifest_path.parent().unwrap();
+        let npm_ffmpeg = project_dir.join("node_modules/@ffmpeg-installer/darwin-arm64/ffmpeg");
+        if npm_ffmpeg.exists() {
+            return Some(npm_ffmpeg.to_string_lossy().to_string());
+        }
+    }
+
     None
 }
 
