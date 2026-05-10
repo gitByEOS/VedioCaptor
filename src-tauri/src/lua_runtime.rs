@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
+use crate::pipeline_executor::Step;
 use crate::types::{ControlDef, ValidateResult, VideoInfo};
 
 /// Lua 运行时代理
@@ -109,6 +110,30 @@ impl LuaRuntime {
             .map_err(|e| format!("调用 validate 失败: {}", e))?;
 
         parse_validate_result(&result)
+    }
+
+    /// 调用 Lua 的 build_command_pipeline，返回可执行步骤
+    pub fn build_command_pipeline(
+        &self,
+        params: &HashMap<String, serde_json::Value>,
+        input_path: &str,
+        output_path: &str,
+    ) -> Result<Vec<Step>, String> {
+        let func: mlua::Function = self
+            .lua
+            .globals()
+            .get("build_command_pipeline")
+            .map_err(|_| "Lua 中未定义 build_command_pipeline 函数".to_string())?;
+
+        let params_table = self.build_params_table(params);
+        let input_str = self.lua.create_string(input_path).map_err(|e| format!("创建输入路径字符串失败: {}", e))?;
+        let output_str = self.lua.create_string(output_path).map_err(|e| format!("创建输出路径字符串失败: {}", e))?;
+
+        let result: Table = func
+            .call((params_table, input_str, output_str))
+            .map_err(|e| format!("调用 build_command_pipeline 失败: {}", e))?;
+
+        parse_pipeline_steps(&result)
     }
 
     /// 在当前 Lua 实例中构建参数表
@@ -239,6 +264,59 @@ fn parse_validate_result(table: &Table) -> Result<ValidateResult, String> {
     let ok: bool = table.get("ok").unwrap_or(false);
     let error: Option<String> = table.get("error").ok();
     Ok(ValidateResult { ok, error })
+}
+
+/// 解析 Lua 返回的步骤数组
+fn parse_pipeline_steps(table: &Table) -> Result<Vec<Step>, String> {
+    let mut steps = Vec::new();
+
+    for pair in table.sequence_values::<mlua::Value>() {
+        let value = pair.map_err(|e| format!("解析步骤失败: {}", e))?;
+        if let Value::Table(step_table) = value {
+            let desc: String = step_table.get("desc").unwrap_or_else(|_| String::from("未命名步骤"));
+            let args_table: Table = step_table
+                .get("args")
+                .map_err(|_| "步骤缺少 args 字段".to_string())?;
+            let command = build_command_from_args(&args_table)?;
+            steps.push(Step {
+                step_name: desc,
+                command,
+            });
+        }
+    }
+
+    Ok(steps)
+}
+
+/// 将 Lua args 数组拼接为可执行命令行字符串
+fn build_command_from_args(args_table: &Table) -> Result<String, String> {
+    let mut parts = Vec::new();
+    let mut i = 1;
+    loop {
+        let val: Result<Value, _> = args_table.get(i);
+        match val {
+            Ok(Value::String(s)) => {
+                let borrowed = s.to_str().map(|b| b.to_string()).unwrap_or_default();
+                parts.push(quote_if_needed(&borrowed));
+            }
+            Ok(_) => break,
+            Err(_) => break,
+        }
+        i += 1;
+    }
+    if parts.is_empty() {
+        return Err("args 数组为空".to_string());
+    }
+    Ok(parts.join(" "))
+}
+
+/// 包含空格或特殊字符的字符串加引号
+fn quote_if_needed(s: &str) -> String {
+    if s.contains(' ') || s.contains('"') || s.contains('\'') || s.is_empty() {
+        format!("\"{}\"", s.replace('"', "\\\""))
+    } else {
+        s.to_string()
+    }
 }
 
 /// 日志模块

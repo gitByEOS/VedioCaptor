@@ -7,3 +7,22 @@ export interface ValidateResult { ok: boolean; error?: string }
 export async function validateParams(preset: string, params: Record<string, any>, inputPath: string): Promise<ValidateResult> {
   return invoke<ValidateResult>("validate", { presetPath: `presets/${preset}.lua`, params, inputPath })
 }
+
+// 调用后端的 execute_conversion 命令
+export async function executeConversion(
+  presetPath: string,
+  params: Record<string, any>,
+  inputPath: string,
+  startTime: string,
+  endTime: string,
+  outputPath: string,
+): Promise<string> {
+  return invoke<string>("execute_conversion", {
+    presetPath,
+    params,
+    inputPath,
+    startTime,
+    endTime,
+    outputPath,
+  })
+}

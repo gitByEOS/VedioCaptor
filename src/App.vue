@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // VideoCaptor 主页面：串联数据流
 import { ref } from "vue";
-import { validateParams } from "./api";
+import { validateParams, executeConversion } from "./api";
 import FileSelector from "./components/FileSelector.vue";
 import PresetSelector from "./components/PresetSelector.vue";
 import ParamPanel from "./components/ParamPanel.vue";
@@ -44,8 +44,17 @@ async function onGenerate() {
     return;
   }
 
-  console.log("生成参数", { preset: selectedPreset.value, file, start, end, params });
-  progressRef.value?.simulateProgress();
+  const presetPath = `presets/${selectedPreset.value}.lua`;
+  const outputPath = file.replace(/\.[^.]+$/, "") + ".gif";
+
+  try {
+    progressRef.value?.simulateProgress();
+    const output = await executeConversion(presetPath, params, file, start, end, outputPath);
+    console.log("转换完成", output);
+  } catch (err) {
+    validateError.value = `转换失败: ${err}`;
+    paramPanelRef.value?.setValidateError(validateError.value);
+  }
 }
 </script>
 

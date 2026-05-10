@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::mpsc;
 
 use crate::ffmpeg_runner::FfmpegRunner;
 
@@ -49,4 +50,46 @@ pub fn execute_pipeline(
 
         on_exit(true);
     });
+}
+
+/// 同步执行管线，阻塞直到所有步骤完成
+/// 返回 (是否成功, 所有错误日志)
+pub fn execute_pipeline_sync(steps: Vec<Step>) -> (bool, Vec<String>) {
+    let mut error_log = Vec::new();
+
+    for step in &steps {
+        let runner = FfmpegRunner::new();
+        let (tx, rx) = mpsc::channel();
+
+        let tx_for_stderr = tx.clone();
+        runner.start_command(
+            &step.command,
+            move |line| {
+                let _ = tx_for_stderr.send(format!("STDERR:{}", line));
+            },
+            move |success| {
+                let _ = tx.send(format!("EXIT:{}", success));
+            },
+        );
+
+        loop {
+            match rx.recv() {
+                Ok(msg) => {
+                    if let Some(line) = msg.strip_prefix("STDERR:") {
+                        error_log.push(line.to_string());
+                    } else if let Some(success_str) = msg.strip_prefix("EXIT:") {
+                        if success_str != "true" {
+                            return (false, error_log);
+                        }
+                        break;
+                    }
+                }
+                Err(_) => {
+                    return (false, error_log);
+                }
+            }
+        }
+    }
+
+    (true, error_log)
 }

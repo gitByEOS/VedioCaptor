@@ -1,5 +1,6 @@
 mod commands;
 mod commands_presets;
+mod execute_commands;
 mod ffmpeg_commands;
 mod ffmpeg_runner;
 mod lua_runtime;
@@ -18,6 +19,7 @@ pub fn run() {
             commands_presets::get_preset_controls,
             ffmpeg_commands::run_ffmpeg,
             ffmpeg_commands::run_pipeline,
+            execute_commands::execute_conversion,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
