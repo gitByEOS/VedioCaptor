@@ -33,7 +33,8 @@ pub async fn execute_conversion(
         return Err("build_command_pipeline 返回空步骤".to_string());
     }
 
-    // 3. 注入时间截取到第一步
+    // 3. 为所有步骤添加 ffmpeg 前缀，第一步注入时间参数
+    ensure_ffmpeg_prefix(&mut steps);
     inject_time_range(&mut steps, &start_time, &end_time);
 
     // 4. 同步执行管线（带进度推送）
@@ -59,24 +60,39 @@ pub async fn execute_conversion(
     })
 }
 
-/// 将起止时间注入为 ffmpeg 的 -ss/-to 参数
+/// 为所有步骤添加 ffmpeg 前缀
+fn ensure_ffmpeg_prefix(steps: &mut Vec<Step>) {
+    for step in steps {
+        if !step.command.starts_with("ffmpeg") && !step.command.starts_with("ffprobe") {
+            step.command = format!("ffmpeg {}", step.command);
+        }
+    }
+}
+
+/// 将起止时间注入为 ffmpeg 的 -ss/-to 参数（添加到第一步 ffmpeg 后）
 fn inject_time_range(steps: &mut Vec<Step>, start: &str, end: &str) {
     if start.is_empty() && end.is_empty() {
         return;
     }
 
     let first = &mut steps[0];
-    let mut prefix = String::new();
+    let mut time_args = String::new();
     if !start.is_empty() {
-        prefix.push_str(&format!("-ss {}", start));
+        time_args.push_str(&format!("-ss {}", start));
     }
     if !end.is_empty() {
-        if !prefix.is_empty() {
-            prefix.push(' ');
+        if !time_args.is_empty() {
+            time_args.push(' ');
         }
-        prefix.push_str(&format!("-to {}", end));
+        time_args.push_str(&format!("-to {}", end));
     }
-    first.command = format!("ffmpeg {} {}", prefix, first.command);
+
+    // 在 ffmpeg 后插入时间参数
+    if first.command.starts_with("ffmpeg ") {
+        first.command = format!("ffmpeg {} {}", time_args, &first.command[7..]);
+    } else {
+        first.command = format!("ffmpeg {} {}", time_args, first.command);
+    }
 }
 
 /// 日志模块
