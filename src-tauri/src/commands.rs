@@ -1,6 +1,5 @@
 use serde_json::Value;
 use std::collections::HashMap;
-use tauri::Manager;
 
 use crate::commands_presets::resolve_presets_dir;
 use crate::lua_runtime::LuaRuntime;
