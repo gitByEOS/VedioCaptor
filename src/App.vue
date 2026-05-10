@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { validateParams, executeConversion, type ConversionResult } from "./api";
 import { isValidTimeRange } from "./utils";
 import FileSelector from "./components/FileSelector.vue";
+import TimeRangeSlider from "./components/TimeRangeSlider.vue";
 import PresetSelector from "./components/PresetSelector.vue";
 import ParamPanel from "./components/ParamPanel.vue";
 import ProgressView from "./components/ProgressView.vue";
@@ -15,6 +16,7 @@ const selectedPreset = ref("");
 const status = ref<AppStatus>("idle");
 const errorInfo = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
+const timeSliderRef = ref<InstanceType<typeof TimeRangeSlider> | null>(null);
 const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
 const resultRef = ref<ConversionResult | null>(null);
@@ -70,10 +72,9 @@ function onPresetChange(preset: string) {
 
 function collectForm() {
   const file = fileSelectorRef.value?.filePath ?? "";
-  const start = fileSelectorRef.value?.startTime ?? "00:00:00";
-  const end = fileSelectorRef.value?.endTime ?? "00:00:10";
+  const timeRange = timeSliderRef.value?.getRange() ?? { start: "00:00:00", end: "00:00:10" };
   const params = paramPanelRef.value?.getParams() ?? {};
-  return { file, start, end, params };
+  return { file, start: timeRange.start, end: timeRange.end, params };
 }
 
 function showValidation(msg: string) {
@@ -101,7 +102,6 @@ async function onGenerate() {
 
   if (!isValidTimeRange(start, end)) {
     showValidation("结束时间必须大于起始时间");
-    fileSelectorRef.value?.validateTime();
     return;
   }
 
@@ -143,6 +143,7 @@ async function onGenerate() {
 
     <main class="main">
       <FileSelector ref="fileSelectorRef" />
+      <TimeRangeSlider ref="timeSliderRef" />
       <PresetSelector @change="onPresetChange" />
       <ParamPanel ref="paramPanelRef" :preset="selectedPreset" />
 
