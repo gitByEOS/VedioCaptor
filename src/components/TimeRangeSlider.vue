@@ -1,25 +1,31 @@
 <script setup lang="ts">
-// 双滑块时间范围选择器：左滑块控制起始时间，右滑块控制结束时间
 import { computed, ref, watch } from "vue";
 
 const props = withDefaults(
   defineProps<{
     总时长秒?: number;
+    当前播放秒?: number;
   }>(),
-  { 总时长秒: 3600 }
+  { 总时长秒: 60, 当前播放秒: 0 }
 );
 
-const 开始秒 = ref(0);
-const 结束秒 = ref(props.总时长秒);
+const emit = defineEmits<{
+  (e: "range-change", start: number, end: number): void;
+}>();
+
+const 精度系数 = 10;
+const 开始值 = ref(0);
+const 结束值 = ref(props.总时长秒 * 精度系数);
 
 watch(
   () => props.总时长秒,
   (newVal) => {
-    结束秒.value = newVal;
+    开始值.value = 0;
+    结束值.value = newVal * 精度系数;
+    emit("range-change", 开始值.value / 精度系数, 结束值.value / 精度系数);
   }
 );
 
-// 格式化秒数为 HH:MM:SS
 function 格式化时间(秒数: number): string {
   const h = Math.floor(秒数 / 3600);
   const m = Math.floor((秒数 % 3600) / 60);
@@ -27,199 +33,198 @@ function 格式化时间(秒数: number): string {
   return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
+const 开始秒 = computed(() => Math.floor(开始值.value / 精度系数));
+const 结束秒 = computed(() => Math.floor(结束值.value / 精度系数));
 const 开始时间显示 = computed(() => 格式化时间(开始秒.value));
 const 结束时间显示 = computed(() => 格式化时间(结束秒.value));
-const 总时长显示 = computed(() => 格式化时间(props.总时长秒));
+const 总时长值 = computed(() => props.总时长秒 * 精度系数);
+const 开始百分比 = computed(() => (开始值.value / 总时长值.value) * 100);
+const 结束百分比 = computed(() => (结束值.value / 总时长值.value) * 100);
+const 播放百分比 = computed(() => (props.当前播放秒 / props.总时长秒) * 100);
+const 正在播放 = computed(() => props.当前播放秒 >= 开始秒.value && props.当前播放秒 <= 结束秒.value);
 
-// 滑块百分比位置
-const 开始百分比 = computed(() => (开始秒.value / props.总时长秒) * 100);
-const 结束百分比 = computed(() => (结束秒.value / props.总时长秒) * 100);
-
-// 限制范围：左滑块不能超过右滑块，右滑块不能小于左滑块
 function 更新开始(value: number) {
-  开始秒.value = Math.min(value, 结束秒.value - 1);
+  开始值.value = Math.min(value, 结束值.value - 精度系数);
 }
 
 function 更新结束(value: number) {
-  结束秒.value = Math.max(value, 开始秒.value + 1);
+  结束值.value = Math.max(value, 开始值.value + 精度系数);
 }
 
-// 对外暴露当前范围
-function getRange(): { 开始秒: number; 结束秒: number } {
-  return { 开始秒: 开始秒.value, 结束秒: 结束秒.value };
+function onSliderChange() {
+  emit("range-change", 开始秒.value, 结束秒.value);
+}
+
+function getRange(): { start: string; end: string } {
+  return { start: 开始时间显示.value, end: 结束时间显示.value };
 }
 
 function setRange(开始: number, 结束: number) {
-  开始秒.value = Math.max(0, Math.min(开始, 结束 - 1));
-  结束秒.value = Math.min(props.总时长秒, Math.max(结束, 开始秒.value + 1));
+  开始值.value = Math.max(0, Math.min(开始 * 精度系数, 结束值.value - 精度系数));
+  结束值.value = Math.min(总时长值.value, Math.max(结束 * 精度系数, 开始值.value + 精度系数));
 }
 
-defineExpose({ getRange, setRange, 开始秒, 结束秒 });
+defineExpose({ getRange, setRange });
 </script>
 
 <template>
-  <section class="slider-panel">
-    <h3>时间范围</h3>
-    <div class="time-display">
-      <span class="time-start">{{ 开始时间显示 }}</span>
-      <span class="time-separator">—</span>
-      <span class="time-end">{{ 结束时间显示 }}</span>
-      <span class="time-total">/ {{ 总时长显示 }}</span>
-    </div>
-    <div class="slider-container">
-      <!-- 中间选中区域高亮 -->
+  <div class="time-range">
+    <span class="time-item start">
+      <span class="label">开始</span>
+      <span class="value">{{ 开始时间显示 }}</span>
+    </span>
+    <div class="track-wrapper">
+      <div class="track-bg" />
       <div
-        class="range-highlight"
-        :style="{
-          left: 开始百分比 + '%',
-          width: 结束百分比 - 开始百分比 + '%',
-        }"
+        class="track-active"
+        :style="{ left: 开始百分比 + '%', width: 结束百分比 - 开始百分比 + '%' }"
       />
-      <!-- 左滑块：起始时间 -->
+      <div
+        v-if="正在播放"
+        class="play-progress"
+        :style="{ left: 播放百分比 + '%' }"
+      />
       <input
         type="range"
-        class="slider slider-left"
+        class="handle start"
         :min="0"
-        :max="总时长秒"
-        :value="开始秒"
+        :max="总时长值"
+        :value="开始值"
         @input="更新开始(Number(($event.target as HTMLInputElement).value))"
+        @change="onSliderChange"
       />
-      <!-- 右滑块：结束时间 -->
       <input
         type="range"
-        class="slider slider-right"
+        class="handle end"
         :min="0"
-        :max="总时长秒"
-        :value="结束秒"
+        :max="总时长值"
+        :value="结束值"
         @input="更新结束(Number(($event.target as HTMLInputElement).value))"
+        @change="onSliderChange"
       />
     </div>
-  </section>
+    <span class="time-item end">
+      <span class="label">结束</span>
+      <span class="value">{{ 结束时间显示 }}</span>
+    </span>
+  </div>
 </template>
 
 <style scoped>
-.slider-panel {
-  padding: 16px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: #fafafa;
-}
-
-h3 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: #333;
-}
-
-.time-display {
+.time-range {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 14px;
-  font-family: monospace;
+  gap: 12px;
+  padding: 12px 0;
 }
 
-.time-start,
-.time-end {
-  color: #333;
-  font-weight: 600;
+.time-item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  white-space: nowrap;
 }
 
-.time-separator {
-  color: #999;
+.time-item.start {
+  order: 0;
 }
 
-.time-total {
-  color: #999;
-  margin-left: 4px;
+.time-item.end {
+  order: 2;
 }
 
-.slider-container {
+.label {
+  font-size: 12px;
+  color: #888;
+}
+
+.value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #222;
+  font-variant-numeric: tabular-nums;
+}
+
+.track-wrapper {
+  order: 1;
+  flex: 1;
   position: relative;
-  height: 24px;
+  height: 32px;
+  min-width: 100px;
 }
 
-.range-highlight {
+.track-bg {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  height: 6px;
-  background: #4a90d9;
-  border-radius: 3px;
-  pointer-events: none;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #ddd;
+  border-radius: 2px;
 }
 
-.slider {
+.track-active {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  background: #222;
+  border-radius: 2px;
+}
+
+.play-progress {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 10px;
+  background: #ff6b35;
+  border-radius: 1px;
+}
+
+.handle {
   position: absolute;
   width: 100%;
-  height: 24px;
+  height: 32px;
   top: 0;
   left: 0;
   margin: 0;
-  -webkit-appearance: none;
   appearance: none;
   background: transparent;
   pointer-events: none;
 }
 
-.slider::-webkit-slider-runnable-track {
-  height: 6px;
-  background: #e0e0e0;
-  border-radius: 3px;
+.handle::-webkit-slider-runnable-track {
+  height: 32px;
+  background: transparent;
 }
 
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.handle::-webkit-slider-thumb {
   appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #333;
-  cursor: pointer;
-  margin-top: -5px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 8px solid #222;
+  margin-top: 18px;
   pointer-events: auto;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: grab;
 }
 
-.slider::-moz-range-track {
-  height: 6px;
-  background: #e0e0e0;
-  border-radius: 3px;
+.handle::-moz-range-track {
+  height: 32px;
+  background: transparent;
 }
 
-.slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #333;
-  cursor: pointer;
-  border: none;
+.handle::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 8px solid #222;
+  border-top: none;
   pointer-events: auto;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.slider-left::-webkit-slider-thumb {
-  background: #2d7d46;
-}
-
-.slider-right::-webkit-slider-thumb {
-  background: #d94a4a;
-}
-
-.slider-left::-moz-range-thumb {
-  background: #2d7d46;
-}
-
-.slider-right::-moz-range-thumb {
-  background: #d94a4a;
-}
-
-.slider:hover::-webkit-slider-thumb {
-  transform: scale(1.1);
-}
-
-.slider:hover::-moz-range-thumb {
-  transform: scale(1.1);
+  cursor: grab;
 }
 </style>

@@ -13,6 +13,8 @@ import ResultView from "./components/ResultView.vue";
 type AppStatus = "idle" | "validating" | "converting" | "done" | "error";
 
 const selectedPreset = ref("");
+const videoDuration = ref(60);
+const currentPlayTime = ref(0);
 const status = ref<AppStatus>("idle");
 const errorInfo = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
@@ -68,6 +70,18 @@ function onPresetChange(preset: string) {
   if (status.value === "error") {
     setStatus("idle");
   }
+}
+
+function onVideoDuration(duration: number) {
+  videoDuration.value = duration;
+}
+
+function onTimeUpdate(time: number) {
+  currentPlayTime.value = time;
+}
+
+function onRangeChange(start: number, end: number) {
+  fileSelectorRef.value?.playRange(start, end);
 }
 
 function collectForm() {
@@ -142,8 +156,8 @@ async function onGenerate() {
     </header>
 
     <main class="main">
-      <FileSelector ref="fileSelectorRef" />
-      <TimeRangeSlider ref="timeSliderRef" />
+      <FileSelector ref="fileSelectorRef" @duration="onVideoDuration" @time-update="onTimeUpdate" />
+      <TimeRangeSlider ref="timeSliderRef" :总时长秒="videoDuration" :当前播放秒="currentPlayTime" @range-change="onRangeChange" />
       <PresetSelector @change="onPresetChange" />
       <ParamPanel ref="paramPanelRef" :preset="selectedPreset" />
 

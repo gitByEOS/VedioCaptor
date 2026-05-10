@@ -1,50 +1,52 @@
 <script setup lang="ts">
 import { ref } from "vue";
-
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
 const filePath = ref("");
-const previewUrl = ref("");
+const videoSrc = ref("");
 const isDragging = ref(false);
+const duration = ref(0);
+const videoRef = ref<HTMLVideoElement | null>(null);
+const currentTime = ref(0);
+const rangeStart = ref(0);
+const rangeEnd = ref(0);
 
-// 截取视频第一帧
-async function captureFirstFrame(videoPath: string) {
-  const video = document.createElement("video");
-  video.crossOrigin = "anonymous";
-  video.preload = "metadata";
+const emit = defineEmits<{
+  (e: "duration", value: number): void;
+  (e: "time-update", value: number): void;
+}>();
 
-  // Tauri 环境下需要转换为可访问的 URL
-  const { convertFileSrc } = await import("@tauri-apps/api/core");
-  const assetUrl = convertFileSrc(videoPath);
-  video.src = assetUrl;
-
-  return new Promise<string>((resolve) => {
-    video.onloadeddata = () => {
-      video.currentTime = 0.1;
-    };
-    video.onseeked = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.8));
-      } else {
-        resolve("");
-      }
-    };
-    video.onerror = () => {
-      console.error("视频加载失败:", videoPath);
-      resolve("");
-    };
-  });
-}
-
-// 处理文件选择
 async function handleFileSelected(path: string) {
   filePath.value = path;
-  previewUrl.value = await captureFirstFrame(path);
+  const assetUrl = convertFileSrc(path);
+  videoSrc.value = assetUrl;
+}
+
+function onVideoLoaded(e: Event) {
+  const video = e.target as HTMLVideoElement;
+  duration.value = video.duration;
+  emit("duration", Math.floor(video.duration));
+}
+
+function onTimeUpdate(e: Event) {
+  const video = e.target as HTMLVideoElement;
+  currentTime.value = video.currentTime;
+  emit("time-update", video.currentTime);
+
+  // 播放超出结束时间时跳回开始时间循环
+  if (rangeEnd.value > 0 && video.currentTime >= rangeEnd.value) {
+    video.currentTime = rangeStart.value;
+  }
+}
+
+function playRange(start: number, end: number) {
+  rangeStart.value = start;
+  rangeEnd.value = end;
+  if (videoRef.value) {
+    videoRef.value.currentTime = start;
+    videoRef.value.play();
+  }
 }
 
 async function onSelectFile() {
@@ -53,17 +55,14 @@ async function onSelectFile() {
       filters: [{ name: "视频", extensions: ["mp4", "mkv", "avi", "webm", "mov"] }],
       multiple: false,
     });
-    if (selected && typeof selected === "string") {
+    if (typeof selected === "string") {
       await handleFileSelected(selected);
-    } else if (selected && typeof selected === "object" && "path" in selected) {
-      await handleFileSelected(selected.path);
     }
   } catch (err) {
     console.error("文件选择失败:", err);
   }
 }
 
-// 拖拽处理
 function onDragOver(e: DragEvent) {
   e.preventDefault();
   isDragging.value = true;
@@ -84,28 +83,36 @@ async function onDrop(e: DragEvent) {
     const validExtensions = ["mp4", "mkv", "avi", "webm", "mov"];
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext && validExtensions.includes(ext)) {
-      // Tauri 环境需要获取文件路径
       const path = (file as any).path || file.name;
       await handleFileSelected(path);
     }
   }
 }
 
-defineExpose({ filePath });
+defineExpose({ filePath, duration, playRange, currentTime });
 </script>
 
 <template>
   <section class="panel">
-    <!-- 预览区域 -->
     <div
       class="preview-area"
-      :class="{ 'dragging': isDragging, 'has-preview': previewUrl }"
+      :class="{ 'dragging': isDragging, 'has-preview': videoSrc }"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop"
       @click="onSelectFile"
     >
-      <img v-if="previewUrl" :src="previewUrl" class="preview-image" />
+      <video
+        v-if="videoSrc"
+        ref="videoRef"
+        :src="videoSrc"
+        class="preview-video"
+        muted
+        autoplay
+        loop
+        @loadedmetadata="onVideoLoaded"
+        @timeupdate="onTimeUpdate"
+      />
       <div v-else class="preview-placeholder">
         <span>选择文件或拖拽视频到此处</span>
       </div>
@@ -120,30 +127,32 @@ defineExpose({ filePath });
   background: transparent;
 }
 
-/* 预览区域 */
 .preview-area {
   position: relative;
   width: 100%;
-  padding-bottom: 56.25%; /* 16:9 */
+  padding-bottom: 56.25%;
   background: #e8e8e8;
   border: 2px dashed #ccc;
   border-radius: 8px;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.2s, background-color 0.2s;
 }
+
 .preview-area:hover {
   border-color: #999;
 }
+
 .preview-area.dragging {
   border-color: #333;
   background: #d0d0d0;
 }
+
 .preview-area.has-preview {
   border-style: solid;
   border-color: #333;
 }
-.preview-image {
+
+.preview-video {
   position: absolute;
   top: 0;
   left: 0;
@@ -152,6 +161,7 @@ defineExpose({ filePath });
   object-fit: contain;
   background: #000;
 }
+
 .preview-placeholder {
   position: absolute;
   top: 0;
