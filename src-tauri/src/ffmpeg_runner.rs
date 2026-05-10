@@ -102,7 +102,8 @@ impl FfmpegRunner {
                 });
             }
             Err(e) => {
-                eprintln!("启动 ffmpeg 失败: {}", e);
+                let error_msg = format!("启动 ffmpeg 失败: executable={}, error={}", executable, e);
+                on_stderr(&error_msg);
                 on_exit(false);
             }
         }

@@ -37,10 +37,16 @@ pub async fn execute_conversion(
     inject_time_range(&mut steps, &start_time, &end_time);
 
     // 4. 同步执行管线（带进度推送）
-    let (success, _log) = execute_pipeline_sync_with_progress(app_handle.clone(), &runtime, steps);
+    let (success, error_log) = execute_pipeline_sync_with_progress(app_handle.clone(), &runtime, steps);
 
     if !success {
-        return Err("管线执行失败".to_string());
+        let error_msg = if error_log.is_empty() {
+            "管线执行失败（无错误日志）".to_string()
+        } else {
+            error_log.join("\n")
+        };
+        log::error("管线执行失败", &error_msg);
+        return Err(error_msg);
     }
 
     // 5. 调用 on_complete 后处理
@@ -77,5 +83,8 @@ fn inject_time_range(steps: &mut Vec<Step>, start: &str, end: &str) {
 mod log {
     pub fn info(msg: &str, detail: &str) {
         eprintln!("[INFO] {}: {}", msg, detail);
+    }
+    pub fn error(msg: &str, detail: &str) {
+        eprintln!("[ERROR] {}: {}", msg, detail);
     }
 }
