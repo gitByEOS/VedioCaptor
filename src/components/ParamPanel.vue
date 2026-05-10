@@ -12,6 +12,14 @@ const controls = ref<ControlDef[]>([]);
 const paramValues = ref<Record<string, string | number>>({});
 const loading = ref(false);
 const errorMsg = ref("");
+const validateErrorMsg = ref("");
+
+// 设置校验错误信息
+function setValidateError(msg: string) {
+  validateErrorMsg.value = msg;
+}
+
+defineExpose({ getParams, setValidateError });
 
 async function loadControls(presetName: string) {
   if (!presetName) {
@@ -47,8 +55,6 @@ function buildDefaultValues(defs: ControlDef[]): Record<string, string | number>
 function getParams(): Record<string, string | number> {
   return { ...paramValues.value };
 }
-
-defineExpose({ getParams });
 
 watch(() => props.preset, loadControls);
 </script>
@@ -95,6 +101,7 @@ watch(() => props.preset, loadControls);
         </template>
       </div>
     </div>
+    <div v-if="validateErrorMsg" class="validate-error">{{ validateErrorMsg }}</div>
   </section>
 </template>
 
@@ -117,6 +124,16 @@ h3 {
 .error {
   color: #e53e3e;
   font-size: 13px;
+}
+.validate-error {
+  color: #e53e3e;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 4px;
 }
 .param-list {
   display: flex;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // VideoCaptor 主页面：串联数据流
 import { ref } from "vue";
+import { validateParams } from "./api";
 import FileSelector from "./components/FileSelector.vue";
 import PresetSelector from "./components/PresetSelector.vue";
 import ParamPanel from "./components/ParamPanel.vue";
@@ -8,15 +9,18 @@ import ProgressView from "./components/ProgressView.vue";
 import ResultView from "./components/ResultView.vue";
 
 const selectedPreset = ref("");
+const validateError = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
 const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
 
 function onPresetChange(preset: string) {
   selectedPreset.value = preset;
+  validateError.value = "";
 }
 
 async function onGenerate() {
+  validateError.value = "";
   const file = fileSelectorRef.value?.filePath ?? "";
   const start = fileSelectorRef.value?.startTime ?? "00:00:00";
   const end = fileSelectorRef.value?.endTime ?? "00:00:10";
@@ -24,6 +28,19 @@ async function onGenerate() {
 
   if (!file) {
     console.log("错误: 未选择视频文件");
+    return;
+  }
+
+  if (!selectedPreset.value) {
+    validateError.value = "请先选择预设";
+    paramPanelRef.value?.setValidateError(validateError.value);
+    return;
+  }
+
+  const result = await validateParams(selectedPreset.value, params, file);
+  if (!result.ok) {
+    validateError.value = result.error ?? "参数校验失败";
+    paramPanelRef.value?.setValidateError(validateError.value);
     return;
   }
 
