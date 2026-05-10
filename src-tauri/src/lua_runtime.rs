@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::pipeline_executor::Step;
-use crate::types::{ControlDef, ValidateResult, VideoInfo};
+use crate::types::{ControlDef, ProgressEvent, ValidateResult, VideoInfo};
 
 /// Lua 运行时代理
 pub struct LuaRuntime {
@@ -134,6 +134,49 @@ impl LuaRuntime {
             .map_err(|e| format!("调用 build_command_pipeline 失败: {}", e))?;
 
         parse_pipeline_steps(&result)
+    }
+
+    /// 调用 Lua 的 parse_progress 解析 ffmpeg stderr 行
+    /// 若 Lua 中未定义该函数或解析失败，返回默认进度 0
+    pub fn parse_progress(&self, line: &str, step_index: usize, step_name: &str) -> ProgressEvent {
+        let func: Result<mlua::Function, _> = self.lua.globals().get("parse_progress");
+        match func {
+            Ok(func) => {
+                let args = vec![
+                    mlua::Value::String(self.lua.create_string(line).expect("创建 Lua 字符串失败")),
+                    mlua::Value::Integer(step_index as i64),
+                    mlua::Value::String(self.lua.create_string(step_name).expect("创建 Lua 字符串失败")),
+                ];
+                let args = mlua::MultiValue::from_vec(args);
+                match func.call::<mlua::Value>(args) {
+                    Ok(mlua::Value::Table(table)) => {
+                        let progress: f64 = table.get("progress").unwrap_or(0.0);
+                        let message: String = table.get("message").unwrap_or_default();
+                        ProgressEvent {
+                            step_name: step_name.to_string(),
+                            step_index,
+                            total_steps: 0,
+                            progress,
+                            message,
+                        }
+                    }
+                    _ => ProgressEvent {
+                        step_name: step_name.to_string(),
+                        step_index,
+                        total_steps: 0,
+                        progress: 0.0,
+                        message: line.to_string(),
+                    },
+                }
+            }
+            Err(_) => ProgressEvent {
+                step_name: step_name.to_string(),
+                step_index,
+                total_steps: 0,
+                progress: 0.0,
+                message: String::new(),
+            },
+        }
     }
 
     /// 在当前 Lua 实例中构建参数表

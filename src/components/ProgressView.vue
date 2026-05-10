@@ -1,34 +1,70 @@
 <script setup lang="ts">
-// 进度展示组件：进度条 + 状态文本 + 命令行预览
+// 进度展示组件：进度条 + 步骤名称 + 百分比 + 命令行日志
 import { ref } from "vue";
 
-const progress = ref(0);
-const statusText = ref("等待中");
-const commandLog = ref(["$ 等待任务启动..."]);
-
-// 占位：模拟进度推进
-function simulateProgress() {
-  console.log("占位：触发 Tauri 生成 GIF 命令");
-  statusText.value = "处理中...";
-  commandLog.value.push("$ ffmpeg -i input.mp4 -vf fps=10 output.gif");
-  let p = 0;
-  const timer = setInterval(() => {
-    p += 10;
-    progress.value = Math.min(p, 100);
-    if (p >= 100) {
-      clearInterval(timer);
-      statusText.value = "完成";
-      commandLog.value.push("完成: output.gif");
-    }
-  }, 300);
+interface ProgressData {
+  step_name: string;
+  step_index: number;
+  total_steps: number;
+  progress: number;
+  message: string;
 }
 
-defineExpose({ simulateProgress, progress, statusText, commandLog });
+const progress = ref(0);
+const stepName = ref("等待中");
+const statusText = ref("等待任务启动...");
+const commandLog = ref<string[]>([]);
+const isRunning = ref(false);
+
+let currentStepIndex = -1;
+
+// 接收真实进度事件
+function updateProgress(data: ProgressData) {
+  if (!isRunning.value) {
+    isRunning.value = true;
+    commandLog.value = [];
+  }
+
+  if (data.step_index !== currentStepIndex) {
+    currentStepIndex = data.step_index;
+    commandLog.value.push(`[${data.step_index + 1}/${data.total_steps}] ${data.step_name}`);
+  }
+
+  progress.value = Math.round(data.progress);
+  stepName.value = data.step_name;
+  statusText.value = `${data.step_name} (${progress}%)`;
+
+  if (data.message) {
+    commandLog.value.push(data.message);
+  }
+}
+
+function resetProgress() {
+  progress.value = 0;
+  stepName.value = "等待中";
+  statusText.value = "等待任务启动...";
+  commandLog.value = [];
+  isRunning.value = false;
+  currentStepIndex = -1;
+}
+
+function markComplete() {
+  progress.value = 100;
+  statusText.value = "完成";
+  commandLog.value.push("转换完成");
+  isRunning.value = false;
+}
+
+defineExpose({ updateProgress, resetProgress, markComplete, progress, statusText, commandLog });
 </script>
 
 <template>
   <section class="panel">
     <h3>进度</h3>
+    <div class="step-info">
+      <span class="step-name">{{ stepName }}</span>
+      <span class="percent">{{ progress }}%</span>
+    </div>
     <div class="status">{{ statusText }}</div>
     <div class="progress-bar">
       <div class="progress-fill" :style="{ width: progress + '%' }"></div>
@@ -50,6 +86,21 @@ h3 {
   margin: 0 0 12px;
   font-size: 14px;
   color: #333;
+}
+.step-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.step-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.percent {
+  font-size: 13px;
+  color: #666;
+  font-weight: 600;
 }
 .status {
   font-size: 13px;

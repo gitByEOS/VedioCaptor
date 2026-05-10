@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // VideoCaptor 主页面：串联数据流
-import { ref } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import { validateParams, executeConversion } from "./api";
 import FileSelector from "./components/FileSelector.vue";
 import PresetSelector from "./components/PresetSelector.vue";
@@ -13,6 +14,26 @@ const validateError = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
 const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
+
+let unlisten: (() => void) | null = null;
+
+// 监听后端进度事件
+onMounted(async () => {
+  unlisten = await listen("conversion-progress", (event) => {
+    const payload = event.payload as Record<string, unknown>;
+    progressRef.value?.updateProgress({
+      step_name: payload.step_name as string,
+      step_index: payload.step_index as number,
+      total_steps: payload.total_steps as number,
+      progress: payload.progress as number,
+      message: payload.message as string,
+    });
+  });
+});
+
+onUnmounted(() => {
+  unlisten?.();
+});
 
 function onPresetChange(preset: string) {
   selectedPreset.value = preset;
@@ -48,9 +69,10 @@ async function onGenerate() {
   const outputPath = file.replace(/\.[^.]+$/, "") + ".gif";
 
   try {
-    progressRef.value?.simulateProgress();
+    progressRef.value?.resetProgress();
     const output = await executeConversion(presetPath, params, file, start, end, outputPath);
     console.log("转换完成", output);
+    progressRef.value?.markComplete();
   } catch (err) {
     validateError.value = `转换失败: ${err}`;
     paramPanelRef.value?.setValidateError(validateError.value);

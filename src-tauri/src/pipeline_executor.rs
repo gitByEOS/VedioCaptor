@@ -1,7 +1,10 @@
-use std::sync::Arc;
 use std::sync::mpsc;
 
+use tauri::{AppHandle, Emitter};
+
 use crate::ffmpeg_runner::FfmpegRunner;
+use crate::lua_runtime::LuaRuntime;
+use crate::types::ProgressEvent;
 
 /// 管线步骤
 #[derive(Clone)]
@@ -10,22 +13,21 @@ pub struct Step {
     pub command: String,
 }
 
-/// 多步骤管线执行器
-/// 依次执行所有步骤，某一步失败立即终止
+/// 异步执行管线，逐步骤执行
 pub fn execute_pipeline(
     steps: Vec<Step>,
     on_stderr: impl Fn(String) + Send + Sync + 'static,
     on_exit: impl Fn(bool) + Send + Sync + 'static,
 ) {
-    let on_stderr = Arc::new(on_stderr);
-    let on_exit = Arc::new(on_exit);
+    let on_stderr = std::sync::Arc::new(on_stderr);
+    let on_exit = std::sync::Arc::new(on_exit);
 
     std::thread::spawn(move || {
         for step in &steps {
             let runner = FfmpegRunner::new();
-            let (tx, rx) = std::sync::mpsc::channel();
+            let (tx, rx) = mpsc::channel();
 
-            let on_stderr = Arc::clone(&on_stderr);
+            let on_stderr = std::sync::Arc::clone(&on_stderr);
             let tx_for_exit = tx.clone();
 
             runner.start_command(
@@ -38,7 +40,6 @@ pub fn execute_pipeline(
                 },
             );
 
-            // 等待当前步骤完成
             match rx.recv() {
                 Ok(true) => {}
                 Ok(false) | Err(_) => {
@@ -52,33 +53,46 @@ pub fn execute_pipeline(
     });
 }
 
-/// 同步执行管线，阻塞直到所有步骤完成
+/// 同步执行管线，带进度事件推送
+/// 每收到 stderr 行时调用 parse_progress 并发送进度事件
 /// 返回 (是否成功, 所有错误日志)
-pub fn execute_pipeline_sync(steps: Vec<Step>) -> (bool, Vec<String>) {
+pub fn execute_pipeline_sync_with_progress(
+    app_handle: AppHandle,
+    lua_runtime: &LuaRuntime,
+    steps: Vec<Step>,
+) -> (bool, Vec<String>) {
     let mut error_log = Vec::new();
+    let total = steps.len();
 
-    for step in &steps {
+    for (i, step) in steps.iter().enumerate() {
         let runner = FfmpegRunner::new();
         let (tx, rx) = mpsc::channel();
+        let app_handle = app_handle.clone();
+        let tx_for_exit = tx.clone();
 
-        let tx_for_stderr = tx.clone();
         runner.start_command(
             &step.command,
             move |line| {
-                let _ = tx_for_stderr.send(format!("STDERR:{}", line));
+                let _ = tx.send(("line".to_string(), line.to_string()));
             },
             move |success| {
-                let _ = tx.send(format!("EXIT:{}", success));
+                let _ = tx_for_exit.send(("exit".to_string(), success.to_string()));
             },
         );
 
         loop {
             match rx.recv() {
-                Ok(msg) => {
-                    if let Some(line) = msg.strip_prefix("STDERR:") {
-                        error_log.push(line.to_string());
-                    } else if let Some(success_str) = msg.strip_prefix("EXIT:") {
-                        if success_str != "true" {
+                Ok((msg_type, data)) => {
+                    if msg_type == "line" {
+                        error_log.push(data.clone());
+                        let event = lua_runtime.parse_progress(&data, i, &step.step_name);
+                        let event = ProgressEvent {
+                            total_steps: total,
+                            ..event
+                        };
+                        let _ = (&app_handle).emit("conversion-progress", &event);
+                    } else if msg_type == "exit" {
+                        if data != "true" {
                             return (false, error_log);
                         }
                         break;

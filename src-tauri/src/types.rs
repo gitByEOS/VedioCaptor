@@ -38,6 +38,16 @@ pub struct ValidateResult {
     pub error: Option<String>,
 }
 
+/// 进度事件数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressEvent {
+    pub step_name: String,
+    pub step_index: usize,
+    pub total_steps: usize,
+    pub progress: f64,
+    pub message: String,
+}
+
 /// 预设模块
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
