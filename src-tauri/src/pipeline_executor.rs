@@ -1,10 +1,21 @@
 use std::sync::mpsc;
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::ffmpeg_runner::FfmpegRunner;
 use crate::lua_runtime::LuaRuntime;
 use crate::types::ProgressEvent;
+
+/// 获取应用内 ffmpeg 资源路径
+fn resolve_ffmpeg_path(app: &AppHandle) -> Option<String> {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let ffmpeg = resource_dir.join("ffmpeg");
+        if ffmpeg.exists() {
+            return Some(ffmpeg.to_string_lossy().to_string());
+        }
+    }
+    None
+}
 
 /// 管线步骤
 #[derive(Clone)]
@@ -63,9 +74,13 @@ pub fn execute_pipeline_sync_with_progress(
 ) -> (bool, Vec<String>) {
     let mut error_log = Vec::new();
     let total = steps.len();
+    let ffmpeg_path = resolve_ffmpeg_path(&app_handle);
 
     for (i, step) in steps.iter().enumerate() {
-        let runner = FfmpegRunner::new();
+        let mut runner = FfmpegRunner::new();
+        if let Some(path) = ffmpeg_path.clone() {
+            runner.set_ffmpeg_path(path);
+        }
         let (tx, rx) = mpsc::channel();
         let app_handle = app_handle.clone();
         let tx_for_exit = tx.clone();

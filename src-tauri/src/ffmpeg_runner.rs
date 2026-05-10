@@ -2,53 +2,12 @@ use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::env;
-
-/// ffmpeg 可执行文件路径（运行时检测并缓存）
-static FFMPEG_PATH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-
-/// 检测 ffmpeg/ffprobe 可执行文件路径
-fn resolve_executable(name: &str) -> String {
-    // 优先使用缓存
-    if let Some(cached) = FFMPEG_PATH.get() {
-        if name == "ffmpeg" {
-            return cached.clone();
-        }
-    }
-
-    // 尝试 PATH 环境变量
-    if let Ok(path_var) = env::var("PATH") {
-        for path_dir in path_var.split(':') {
-            let full_path = format!("{}/{}", path_dir, name);
-            if std::path::Path::new(&full_path).exists() {
-                if name == "ffmpeg" {
-                    let _ = FFMPEG_PATH.set(full_path.clone());
-                }
-                return full_path;
-            }
-        }
-    }
-
-    // macOS Homebrew 常见路径
-    let homebrew_paths = ["/opt/homebrew/bin", "/usr/local/bin"];
-    for dir in homebrew_paths {
-        let full_path = format!("{}/{}", dir, name);
-        if std::path::Path::new(&full_path).exists() {
-            if name == "ffmpeg" {
-                let _ = FFMPEG_PATH.set(full_path.clone());
-            }
-            return full_path;
-        }
-    }
-
-    // fallback: 直接使用命令名（依赖系统 PATH）
-    name.to_string()
-}
 
 /// ffmpeg 执行器，封装 ffmpeg 进程生命周期
 pub struct FfmpegRunner {
     child: Arc<Mutex<Option<Child>>>,
     running: Arc<AtomicBool>,
+    ffmpeg_path: Option<String>,
 }
 
 impl FfmpegRunner {
@@ -56,7 +15,13 @@ impl FfmpegRunner {
         FfmpegRunner {
             child: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
+            ffmpeg_path: None,
         }
+    }
+
+    /// 设置 ffmpeg 可执行文件路径
+    pub fn set_ffmpeg_path(&mut self, path: String) {
+        self.ffmpeg_path = Some(path);
     }
 
     /// 启动 ffmpeg 命令，逐行捕获 stderr，完成后调用 on_exit
@@ -72,8 +37,13 @@ impl FfmpegRunner {
             return;
         }
 
-        // 动态检测 ffmpeg/ffprobe 可执行文件路径
-        let executable = resolve_executable(&parts[0]);
+        // 使用预设的 ffmpeg_path 或直接使用命令中的路径
+        let executable = if parts[0] == "ffmpeg" || parts[0] == "ffprobe" {
+            self.ffmpeg_path.clone().unwrap_or_else(|| parts[0].clone())
+        } else {
+            parts[0].clone()
+        };
+
         let mut command = Command::new(&executable);
         command.args(&parts[1..]);
         command.stderr(Stdio::piped());
