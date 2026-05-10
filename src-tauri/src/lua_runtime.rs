@@ -379,6 +379,12 @@ fn build_command_from_args(args_table: &Table) -> Result<String, String> {
     if parts.is_empty() {
         return Err("args 数组为空".to_string());
     }
+
+    // 如果第一个参数不是 ffmpeg/ffprobe，添加 ffmpeg 前缀
+    if parts[0] != "ffmpeg" && parts[0] != "ffprobe" {
+        parts.insert(0, "ffmpeg".to_string());
+    }
+
     Ok(parts.join(" "))
 }
 
