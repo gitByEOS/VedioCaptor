@@ -1,12 +1,17 @@
 <script setup lang="ts">
-// 文件选择组件：路径输入 + 起止时间
-import { ref } from "vue";
+import { ref, computed } from "vue";
+import { timeToSeconds, isValidTimeRange, secondsToTime } from "../utils";
 
 const filePath = ref("");
 const startTime = ref("00:00:00");
 const endTime = ref("00:00:10");
+const duration = ref("");
+const errorMsg = ref("");
+
+const durationSeconds = computed(() => duration.value ? timeToSeconds(duration.value) : 0);
 
 async function onSelectFile() {
+  errorMsg.value = "";
   try {
     const dialog = await import("@tauri-apps/plugin-dialog");
     const selected = await dialog.open({
@@ -14,14 +19,38 @@ async function onSelectFile() {
     });
     if (selected && typeof selected === "string") {
       filePath.value = selected;
+      endTime.value = "00:00:10";
     }
   } catch {
-    // dialog 插件不可用，fallback 到手动输入
     console.log("文件选择器插件不可用，使用手动输入");
   }
 }
 
-defineExpose({ filePath, startTime, endTime });
+function validateTime(): boolean {
+  if (!isValidTimeRange(startTime.value, endTime.value)) {
+    errorMsg.value = "结束时间必须大于起始时间";
+    return false;
+  }
+  errorMsg.value = "";
+  return true;
+}
+
+function onStartTimeChange() {
+  if (durationSeconds.value && timeToSeconds(startTime.value) >= durationSeconds.value) {
+    errorMsg.value = "起始时间不能超过视频总时长";
+  } else {
+    validateTime();
+  }
+}
+
+function onEndTimeChange() {
+  if (durationSeconds.value && timeToSeconds(endTime.value) > durationSeconds.value) {
+    endTime.value = secondsToTime(durationSeconds.value);
+  }
+  validateTime();
+}
+
+defineExpose({ filePath, startTime, endTime, validateTime });
 </script>
 
 <template>
@@ -36,16 +65,33 @@ defineExpose({ filePath, startTime, endTime });
       />
       <button type="button" @click="onSelectFile">选择文件</button>
     </div>
+
+    <div v-if="duration" class="duration-info">
+      视频时长: {{ duration }}
+    </div>
+
     <div class="time-row">
       <label>
         起始时间
-        <input v-model="startTime" type="text" placeholder="00:00:00" />
+        <input
+          v-model="startTime"
+          type="text"
+          placeholder="HH:MM:SS"
+          @input="onStartTimeChange"
+        />
       </label>
       <label>
         结束时间
-        <input v-model="endTime" type="text" placeholder="00:00:10" />
+        <input
+          v-model="endTime"
+          type="text"
+          placeholder="HH:MM:SS"
+          @input="onEndTimeChange"
+        />
       </label>
     </div>
+
+    <div v-if="errorMsg" class="time-error">{{ errorMsg }}</div>
   </section>
 </template>
 
@@ -73,6 +119,24 @@ h3 {
   border-radius: 6px;
   font-size: 14px;
 }
+.file-row button {
+  padding: 8px 16px;
+  background: #333;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.file-row button:hover {
+  background: #555;
+}
+.duration-info {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
 .time-row {
   display: flex;
   gap: 16px;
@@ -90,5 +154,10 @@ h3 {
   border-radius: 6px;
   font-size: 13px;
   width: 120px;
+}
+.time-error {
+  color: #e53e3e;
+  font-size: 12px;
+  margin-top: 8px;
 }
 </style>

@@ -1,16 +1,19 @@
 <script setup lang="ts">
-// VideoCaptor 主页面：串联数据流
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { validateParams, executeConversion, type ConversionResult } from "./api";
+import { isValidTimeRange } from "./utils";
 import FileSelector from "./components/FileSelector.vue";
 import PresetSelector from "./components/PresetSelector.vue";
 import ParamPanel from "./components/ParamPanel.vue";
 import ProgressView from "./components/ProgressView.vue";
 import ResultView from "./components/ResultView.vue";
 
+type AppStatus = "idle" | "validating" | "converting" | "done" | "error";
+
 const selectedPreset = ref("");
-const validateError = ref("");
+const status = ref<AppStatus>("idle");
+const errorInfo = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
 const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
@@ -18,7 +21,8 @@ const resultRef = ref<ConversionResult | null>(null);
 
 let unlisten: (() => void) | null = null;
 
-// 监听后端进度事件
+const isConverting = computed(() => status.value === "converting" || status.value === "validating");
+
 onMounted(async () => {
   unlisten = await listen("conversion-progress", (event) => {
     const payload = event.payload as Record<string, unknown>;
@@ -36,47 +40,79 @@ onUnmounted(() => {
   unlisten?.();
 });
 
-function onPresetChange(preset: string) {
-  selectedPreset.value = preset;
-  validateError.value = "";
+function setStatus(s: AppStatus) {
+  status.value = s;
 }
 
-async function onGenerate() {
-  validateError.value = "";
+function onPresetChange(preset: string) {
+  selectedPreset.value = preset;
+  errorInfo.value = "";
+  if (status.value === "error") {
+    setStatus("idle");
+  }
+}
+
+function collectForm() {
   const file = fileSelectorRef.value?.filePath ?? "";
   const start = fileSelectorRef.value?.startTime ?? "00:00:00";
   const end = fileSelectorRef.value?.endTime ?? "00:00:10";
   const params = paramPanelRef.value?.getParams() ?? {};
+  return { file, start, end, params };
+}
+
+function showValidation(msg: string) {
+  errorInfo.value = msg;
+  paramPanelRef.value?.setValidateError(msg);
+  setStatus("error");
+}
+
+async function onGenerate() {
+  errorInfo.value = "";
+  resultRef.value = null;
+
+  const { file, start, end, params } = collectForm();
 
   if (!file) {
-    console.log("错误: 未选择视频文件");
+    showValidation("请先选择视频文件");
     return;
   }
 
   if (!selectedPreset.value) {
-    validateError.value = "请先选择预设";
-    paramPanelRef.value?.setValidateError(validateError.value);
+    showValidation("请先选择预设");
     return;
   }
 
-  const result = await validateParams(selectedPreset.value, params, file);
-  if (!result.ok) {
-    validateError.value = result.error ?? "参数校验失败";
-    paramPanelRef.value?.setValidateError(validateError.value);
+  if (!isValidTimeRange(start, end)) {
+    showValidation("结束时间必须大于起始时间");
+    fileSelectorRef.value?.validateTime();
     return;
   }
+
+  setStatus("validating");
+
+  const validateResult = await validateParams(selectedPreset.value, params, file);
+  if (!validateResult.ok) {
+    showValidation(validateResult.error ?? "参数校验失败");
+    return;
+  }
+
+  setStatus("converting");
+  progressRef.value?.resetProgress();
 
   const presetPath = `presets/${selectedPreset.value}.lua`;
   const outputPath = file.replace(/\.[^.]+$/, "") + ".gif";
 
   try {
-    progressRef.value?.resetProgress();
-    const conversionResult = await executeConversion(presetPath, params, file, start, end, outputPath);
+    const conversionResult = await executeConversion(
+      presetPath, params, file, start, end, outputPath,
+    );
     resultRef.value = conversionResult;
     progressRef.value?.markComplete();
+    setStatus("done");
   } catch (err) {
-    validateError.value = `转换失败: ${err}`;
-    paramPanelRef.value?.setValidateError(validateError.value);
+    errorInfo.value = `转换失败: ${err}`;
+    progressRef.value?.markComplete();
+    setStatus("error");
   }
 }
 </script>
@@ -85,6 +121,10 @@ async function onGenerate() {
   <div class="app">
     <header class="header">
       <h1>VideoCaptor</h1>
+      <div v-if="errorInfo" class="error-banner">{{ errorInfo }}</div>
+      <div v-else-if="status === 'validating'" class="status-hint">校验中...</div>
+      <div v-else-if="status === 'converting'" class="status-hint">转换中...</div>
+      <div v-else-if="status === 'done'" class="status-hint">转换完成</div>
     </header>
 
     <main class="main">
@@ -93,8 +133,14 @@ async function onGenerate() {
       <ParamPanel ref="paramPanelRef" :preset="selectedPreset" />
 
       <div class="action-area">
-        <button type="button" class="generate-btn" @click="onGenerate">
-          生成 GIF
+        <button
+          type="button"
+          class="generate-btn"
+          :class="{ disabled: isConverting }"
+          :disabled="isConverting"
+          @click="onGenerate"
+        >
+          {{ isConverting ? "处理中..." : "生成 GIF" }}
         </button>
       </div>
 
@@ -123,6 +169,20 @@ async function onGenerate() {
   color: #222;
   margin: 0;
 }
+.error-banner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 6px;
+  color: #e53e3e;
+  font-size: 13px;
+}
+.status-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #888;
+}
 .main {
   display: flex;
   flex-direction: column;
@@ -141,13 +201,16 @@ async function onGenerate() {
   font-size: 15px;
   cursor: pointer;
 }
-.generate-btn:hover {
+.generate-btn:hover:not(.disabled) {
   background: #444;
+}
+.generate-btn.disabled {
+  background: #999;
+  cursor: not-allowed;
 }
 </style>
 
 <style>
-/* 全局重置 */
 :root {
   font-family: Inter, -apple-system, sans-serif;
   font-size: 14px;
