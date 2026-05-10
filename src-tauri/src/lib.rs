@@ -1,4 +1,5 @@
 mod commands;
+mod commands_presets;
 mod ffmpeg_commands;
 mod ffmpeg_runner;
 mod lua_runtime;
@@ -13,6 +14,8 @@ pub fn run() {
             commands::scan_presets,
             commands::get_controls,
             commands::validate,
+            commands_presets::list_presets,
+            commands_presets::get_preset_controls,
             ffmpeg_commands::run_ffmpeg,
             ffmpeg_commands::run_pipeline,
         ])
