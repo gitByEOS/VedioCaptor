@@ -1,6 +1,20 @@
 <script setup lang="ts">
-// 进度展示组件：进度条 + 步骤名称 + 百分比 + 命令行日志
-import { ref } from "vue";
+// 进度展示组件：进度条 + 步骤名称 + 百分比 + 日志
+import { ref, watch, nextTick } from "vue";
+
+const props = defineProps<{
+  logMessages?: string[];
+}>();
+
+const logBoxRef = ref<HTMLDivElement | null>(null);
+
+// 日志更新时自动滚动到底部
+watch(() => props.logMessages?.length, async () => {
+  await nextTick();
+  if (logBoxRef.value) {
+    logBoxRef.value.scrollTop = logBoxRef.value.scrollHeight;
+  }
+});
 
 interface ProgressData {
   step_name: string;
@@ -13,7 +27,6 @@ interface ProgressData {
 const progress = ref(0);
 const stepName = ref("等待中");
 const statusText = ref("等待任务启动...");
-const commandLog = ref<string[]>([]);
 const isRunning = ref(false);
 
 let currentStepIndex = -1;
@@ -22,28 +35,21 @@ let currentStepIndex = -1;
 function updateProgress(data: ProgressData) {
   if (!isRunning.value) {
     isRunning.value = true;
-    commandLog.value = [];
   }
 
   if (data.step_index !== currentStepIndex) {
     currentStepIndex = data.step_index;
-    commandLog.value.push(`[${data.step_index + 1}/${data.total_steps}] ${data.step_name}`);
   }
 
   progress.value = Math.round(data.progress);
   stepName.value = data.step_name;
   statusText.value = `${data.step_name} (${progress}%)`;
-
-  if (data.message) {
-    commandLog.value.push(data.message);
-  }
 }
 
 function resetProgress() {
   progress.value = 0;
   stepName.value = "等待中";
   statusText.value = "等待任务启动...";
-  commandLog.value = [];
   isRunning.value = false;
   currentStepIndex = -1;
 }
@@ -51,11 +57,10 @@ function resetProgress() {
 function markComplete() {
   progress.value = 100;
   statusText.value = "完成";
-  commandLog.value.push("转换完成");
   isRunning.value = false;
 }
 
-defineExpose({ updateProgress, resetProgress, markComplete, progress, statusText, commandLog });
+defineExpose({ updateProgress, resetProgress, markComplete, progress, statusText });
 </script>
 
 <template>
@@ -69,8 +74,8 @@ defineExpose({ updateProgress, resetProgress, markComplete, progress, statusText
     <div class="progress-bar">
       <div class="progress-fill" :style="{ width: progress + '%' }"></div>
     </div>
-    <div class="log-box">
-      <div v-for="(line, i) in commandLog" :key="i" class="log-line">{{ line }}</div>
+    <div v-if="logMessages && logMessages.length > 0" ref="logBoxRef" class="log-box">
+      <div v-for="(log, i) in logMessages" :key="i" class="log-line">{{ log }}</div>
     </div>
   </section>
 </template>
@@ -120,16 +125,20 @@ h3 {
   transition: width 0.3s;
 }
 .log-box {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 10px;
+  background: #1a1a1a;
+  color: #888;
+  padding: 8px 10px;
   border-radius: 6px;
-  font-family: monospace;
+  font-family: "SF Mono", Monaco, monospace;
   font-size: 12px;
-  max-height: 120px;
+  max-height: 66px;
   overflow-y: auto;
+  margin-top: 12px;
 }
 .log-line {
   line-height: 1.5;
+}
+.log-line:last-child {
+  color: #ccc;
 }
 </style>

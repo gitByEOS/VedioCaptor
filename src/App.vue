@@ -5,8 +5,7 @@ import { validateParams, executeConversion, type ConversionResult } from "./api"
 import { isValidTimeRange } from "./utils";
 import FileSelector from "./components/FileSelector.vue";
 import TimeRangeSlider from "./components/TimeRangeSlider.vue";
-import PresetSelector from "./components/PresetSelector.vue";
-import ParamPanel from "./components/ParamPanel.vue";
+import PresetParamPanel from "./components/PresetParamPanel.vue";
 import ProgressView from "./components/ProgressView.vue";
 import ResultView from "./components/ResultView.vue";
 
@@ -19,17 +18,22 @@ const status = ref<AppStatus>("idle");
 const errorInfo = ref("");
 const fileSelectorRef = ref<InstanceType<typeof FileSelector> | null>(null);
 const timeSliderRef = ref<InstanceType<typeof TimeRangeSlider> | null>(null);
-const paramPanelRef = ref<InstanceType<typeof ParamPanel> | null>(null);
+const presetParamRef = ref<InstanceType<typeof PresetParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
 const resultRef = ref<ConversionResult | null>(null);
 const logMessages = ref<string[]>([]);
+let taskStartTime = 0;
 
 let unlisten: (() => void) | null = null;
 
 const isConverting = computed(() => status.value === "converting" || status.value === "validating");
 
 function addLog(msg: string) {
-  const timestamp = new Date().toLocaleTimeString();
+  const elapsed = Math.floor((Date.now() - taskStartTime) / 1000);
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  const timestamp = [h, m, s].map(v => String(v).padStart(2, "0")).join(":");
   logMessages.value.push(`[${timestamp}] ${msg}`);
 }
 
@@ -87,20 +91,22 @@ function onRangeChange(start: number, end: number) {
 function collectForm() {
   const file = fileSelectorRef.value?.filePath ?? "";
   const timeRange = timeSliderRef.value?.getRange() ?? { start: "00:00:00", end: "00:00:10" };
-  const params = paramPanelRef.value?.getParams() ?? {};
+  const params = presetParamRef.value?.getParams() ?? {};
   return { file, start: timeRange.start, end: timeRange.end, params };
 }
 
 function showValidation(msg: string) {
   errorInfo.value = msg;
   addLog(`错误: ${msg}`);
-  paramPanelRef.value?.setValidateError(msg);
+  presetParamRef.value?.setValidateError(msg);
   setStatus("error");
 }
 
 async function onGenerate() {
   errorInfo.value = "";
   resultRef.value = null;
+  logMessages.value = [];
+  taskStartTime = Date.now();
 
   const { file, start, end, params } = collectForm();
 
@@ -118,6 +124,12 @@ async function onGenerate() {
     showValidation("结束时间必须大于起始时间");
     return;
   }
+
+  // 打印任务详情
+  addLog(`文件: ${file}`);
+  addLog(`时间: ${start} → ${end}`);
+  addLog(`预设: ${selectedPreset.value}`);
+  addLog(`参数: ${JSON.stringify(params)}`);
 
   setStatus("validating");
 
@@ -158,8 +170,7 @@ async function onGenerate() {
     <main class="main">
       <FileSelector ref="fileSelectorRef" @duration="onVideoDuration" @time-update="onTimeUpdate" />
       <TimeRangeSlider ref="timeSliderRef" :总时长秒="videoDuration" :当前播放秒="currentPlayTime" @range-change="onRangeChange" />
-      <PresetSelector @change="onPresetChange" />
-      <ParamPanel ref="paramPanelRef" :preset="selectedPreset" />
+      <PresetParamPanel ref="presetParamRef" @change="onPresetChange" />
 
       <div class="action-area">
         <button
@@ -173,19 +184,17 @@ async function onGenerate() {
         </button>
       </div>
 
-      <ProgressView ref="progressRef" />
+      <ProgressView
+      v-if="logMessages.length > 0 || isConverting"
+      ref="progressRef"
+      :log-messages="logMessages"
+    />
       <ResultView
         v-if="resultRef"
         :gif-path="resultRef.output_path"
         :message="resultRef.message"
       />
     </main>
-
-    <div v-if="logMessages.length > 0" class="log-box">
-      <div v-for="(log, index) in logMessages" :key="index" class="log-item">
-        {{ log }}
-      </div>
-    </div>
   </div>
 </template>
 
@@ -228,23 +237,6 @@ async function onGenerate() {
 .generate-btn.disabled {
   background: #999;
   cursor: not-allowed;
-}
-.log-box {
-  margin-top: 24px;
-  padding: 12px;
-  background: #1a1a1a;
-  border-radius: 8px;
-  font-family: "SF Mono", Monaco, monospace;
-  font-size: 12px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.log-item {
-  color: #888;
-  line-height: 1.6;
-}
-.log-item:last-child {
-  color: #ccc;
 }
 </style>
 

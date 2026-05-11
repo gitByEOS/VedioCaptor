@@ -33,9 +33,14 @@ pub async fn execute_conversion(
         return Err("build_command_pipeline 返回空步骤".to_string());
     }
 
-    // 3. 为所有步骤添加 ffmpeg 前缀，第一步注入时间参数
+    // 3. 为所有步骤添加 ffmpeg 前缀，对使用原始输入的步骤注入时间参数
     ensure_ffmpeg_prefix(&mut steps);
-    inject_time_range(&mut steps, &start_time, &end_time);
+    inject_time_range(&mut steps, &input_path, &start_time, &end_time);
+
+    // 打印每步命令到终端日志
+    for (i, step) in steps.iter().enumerate() {
+        log::info(&format!("步骤{}", i + 1), &step.command);
+    }
 
     // 4. 同步执行管线（带进度推送）
     let (success, error_log) = execute_pipeline_sync_with_progress(app_handle.clone(), &runtime, steps);
@@ -69,13 +74,12 @@ fn ensure_ffmpeg_prefix(steps: &mut Vec<Step>) {
     }
 }
 
-/// 将起止时间注入为 ffmpeg 的 -ss/-to 参数（添加到第一步 ffmpeg 后）
-fn inject_time_range(steps: &mut Vec<Step>, start: &str, end: &str) {
+/// 对所有使用原始输入文件的步骤注入 ffmpeg 时间参数（-ss/-to）
+fn inject_time_range(steps: &mut Vec<Step>, input_path: &str, start: &str, end: &str) {
     if start.is_empty() && end.is_empty() {
         return;
     }
 
-    let first = &mut steps[0];
     let mut time_args = String::new();
     if !start.is_empty() {
         time_args.push_str(&format!("-ss {}", start));
@@ -87,11 +91,15 @@ fn inject_time_range(steps: &mut Vec<Step>, start: &str, end: &str) {
         time_args.push_str(&format!("-to {}", end));
     }
 
-    // 在 ffmpeg 后插入时间参数
-    if first.command.starts_with("ffmpeg ") {
-        first.command = format!("ffmpeg {} {}", time_args, &first.command[7..]);
-    } else {
-        first.command = format!("ffmpeg {} {}", time_args, first.command);
+    for step in steps.iter_mut() {
+        // 只对包含原始输入文件的步骤注入时间参数
+        if step.command.contains(&format!("-i {}", input_path)) {
+            if step.command.starts_with("ffmpeg ") {
+                step.command = format!("ffmpeg {} {}", time_args, &step.command[7..]);
+            } else {
+                step.command = format!("ffmpeg {} {}", time_args, step.command);
+            }
+        }
     }
 }
 

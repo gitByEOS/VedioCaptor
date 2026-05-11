@@ -98,6 +98,16 @@ pub fn execute_pipeline_sync_with_progress(
         let app_handle = app_handle.clone();
         let tx_for_exit = tx.clone();
 
+        // 发送步骤开始事件
+        let start_event = ProgressEvent {
+            step_name: step.step_name.clone(),
+            step_index: i,
+            total_steps: total,
+            progress: 0.0,
+            message: format!("开始 {}", step.step_name),
+        };
+        let _ = (&app_handle).emit("conversion-progress", &start_event);
+
         runner.start_command(
             &step.command,
             move |line| {
@@ -123,6 +133,15 @@ pub fn execute_pipeline_sync_with_progress(
                         if data != "true" {
                             return (false, error_log);
                         }
+                        // 发送步骤完成事件
+                        let done_event = ProgressEvent {
+                            step_name: step.step_name.clone(),
+                            step_index: i,
+                            total_steps: total,
+                            progress: 100.0,
+                            message: format!("完成 {}", step.step_name),
+                        };
+                        let _ = (&app_handle).emit("conversion-progress", &done_event);
                         break;
                     }
                 }
