@@ -84,6 +84,8 @@ defineExpose({ getRange, setRange });
         class="play-progress"
         :style="{ left: 播放百分比 + '%' }"
       />
+      <div class="triangle start" :style="{ left: 开始百分比 + '%' }" />
+      <div class="triangle end" :style="{ left: 结束百分比 + '%' }" />
       <input
         type="range"
         class="handle start"
@@ -153,6 +155,17 @@ defineExpose({ getRange, setRange });
   min-width: 100px;
 }
 
+.triangle {
+  position: absolute;
+  bottom: 4px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 8px solid #222;
+  transform: translateX(-6px);
+}
+
 .track-bg {
   position: absolute;
   top: 50%;
@@ -202,12 +215,18 @@ defineExpose({ getRange, setRange });
 
 .handle::-webkit-slider-thumb {
   appearance: none;
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 8px solid #222;
-  margin-top: 18px;
+  width: 16px;
+  height: 32px;
+  background: transparent;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.handle::-moz-range-thumb {
+  width: 16px;
+  height: 32px;
+  background: transparent;
+  border: none;
   pointer-events: auto;
   cursor: grab;
 }
@@ -215,16 +234,5 @@ defineExpose({ getRange, setRange });
 .handle::-moz-range-track {
   height: 32px;
   background: transparent;
-}
-
-.handle::-moz-range-thumb {
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 8px solid #222;
-  border-top: none;
-  pointer-events: auto;
-  cursor: grab;
 }
 </style>
