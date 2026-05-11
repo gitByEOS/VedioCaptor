@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { appCacheDir, join } from "@tauri-apps/api/path";
+import { mkdir } from "@tauri-apps/plugin-fs";
 import { validateParams, executeConversion, type ConversionResult } from "./api";
 import { isValidTimeRange } from "./utils";
 import FileSelector from "./components/FileSelector.vue";
@@ -22,6 +24,7 @@ const presetParamRef = ref<InstanceType<typeof PresetParamPanel> | null>(null);
 const progressRef = ref<InstanceType<typeof ProgressView> | null>(null);
 const resultRef = ref<ConversionResult | null>(null);
 const logMessages = ref<string[]>([]);
+const previewPath = ref("");
 let taskStartTime = 0;
 
 let unlisten: (() => void) | null = null;
@@ -108,6 +111,18 @@ async function onGenerate() {
   logMessages.value = [];
   taskStartTime = Date.now();
 
+  // 初始化预览路径
+  const cacheDirPath = await appCacheDir();
+  previewPath.value = await join(cacheDirPath, "preview.gif");
+  addLog(`预览路径: ${previewPath.value}`);
+
+  // 确保缓存目录存在
+  try {
+    await mkdir(cacheDirPath, { recursive: true });
+  } catch {
+    // 目录已存在，忽略
+  }
+
   const { file, start, end, params } = collectForm();
 
   if (!file) {
@@ -143,13 +158,12 @@ async function onGenerate() {
   progressRef.value?.resetProgress();
 
   const presetName = selectedPreset.value;
-  const outputPath = file.replace(/\.[^.]+$/, "") + ".gif";
 
   try {
     const conversionResult = await executeConversion(
-      presetName, params, file, start, end, outputPath,
+      presetName, params, file, start, end, previewPath.value,
     );
-    resultRef.value = conversionResult;
+    resultRef.value = { output_path: previewPath.value, message: conversionResult.message };
     progressRef.value?.markComplete();
     setStatus("done");
   } catch (err) {
@@ -158,6 +172,10 @@ async function onGenerate() {
     progressRef.value?.markComplete();
     setStatus("error");
   }
+}
+
+function onExported(savePath: string) {
+  addLog(`已导出: ${savePath}`);
 }
 </script>
 
@@ -191,8 +209,9 @@ async function onGenerate() {
     />
       <ResultView
         v-if="resultRef"
-        :gif-path="resultRef.output_path"
+        :gif-path="previewPath"
         :message="resultRef.message"
+        @exported="onExported"
       />
     </main>
   </div>

@@ -5,8 +5,26 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default",
     "dialog:default",
-    "shell:default"
+    "shell:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$APPCACHE/**" },
+        { "path": "$HOME/**" },
+        { "path": "$CACHE/**" }
+      ]
+    },
+    "fs:allow-appcache-read",
+    "fs:allow-appcache-write",
+    "fs:allow-mkdir",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$APPCACHE/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$APPCACHE/**" }]
+    }
   ]
 }

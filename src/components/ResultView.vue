@@ -1,12 +1,26 @@
 <script setup lang="ts">
-// 结果展示组件：GIF 预览 + 打开文件夹 + 自定义消息
+// 结果展示组件：GIF 预览 + 导出按钮
+import { ref } from "vue";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { dirname } from "@tauri-apps/api/path";
+import { save } from "@tauri-apps/plugin-dialog";
+import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 
 const props = defineProps<{
   gifPath: string;
   message?: string;
 }>();
+
+const emit = defineEmits<{
+  exported: [path: string];
+}>();
+
+const exporting = ref(false);
+
+function getPreviewUrl(path: string): string {
+  return convertFileSrc(path);
+}
 
 async function onOpenFolder() {
   if (!props.gifPath) return;
@@ -14,20 +28,46 @@ async function onOpenFolder() {
   openPath(dir);
 }
 
-function toFileUrl(path: string): string {
-  return `file://${path}`;
+async function onExport() {
+  if (!props.gifPath || exporting.value) return;
+  exporting.value = true;
+
+  try {
+    const savePath = await save({
+      filters: [{ name: "GIF", extensions: ["gif"] }],
+      defaultPath: "output.gif",
+    });
+    if (!savePath) {
+      exporting.value = false;
+      return;
+    }
+
+    // 读取临时文件，写入用户选择的位置
+    const data = await readFile(props.gifPath);
+    await writeFile(savePath, data);
+
+    emit("exported", savePath);
+  } catch (err) {
+    console.error("导出失败:", err);
+  } finally {
+    exporting.value = false;
+  }
 }
 </script>
 
 <template>
   <section v-if="gifPath" class="panel">
-    <h3>结果</h3>
+    <h3>预览</h3>
     <div class="preview">
-      <img :src="toFileUrl(gifPath)" alt="生成的 GIF 预览" />
+      <img :src="getPreviewUrl(gifPath)" alt="GIF 预览" />
     </div>
     <p v-if="message" class="result-message">{{ message }}</p>
-    <p class="path-text" :title="gifPath">{{ gifPath }}</p>
-    <button type="button" class="folder-btn" @click="onOpenFolder">打开文件夹</button>
+    <div class="actions">
+      <button type="button" class="export-btn" :disabled="exporting" @click="onExport">
+        {{ exporting ? "导出中..." : "导出" }}
+      </button>
+      <button type="button" class="folder-btn" @click="onOpenFolder">打开缓存目录</button>
+    </div>
   </section>
 </template>
 
@@ -66,17 +106,30 @@ h3 {
   font-size: 13px;
   color: #2e7d32;
 }
-.path-text {
-  margin: 4px 0 12px;
-  font-size: 12px;
-  color: #666;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.export-btn {
+  padding: 8px 20px;
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.export-btn:hover:not(:disabled) {
+  background: #444;
+}
+.export-btn:disabled {
+  background: #999;
+  cursor: not-allowed;
 }
 .folder-btn {
   padding: 8px 16px;
-  background: #333;
+  background: #666;
   color: #fff;
   border: none;
   border-radius: 6px;
