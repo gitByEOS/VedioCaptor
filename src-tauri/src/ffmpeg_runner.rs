@@ -73,13 +73,29 @@ impl FfmpegRunner {
                     };
 
                     if let Some(stderr) = stderr_opt {
-                        let reader = BufReader::new(stderr);
-                        for line_result in reader.lines() {
+                        let mut reader = BufReader::new(stderr);
+                        let mut byte_buf = Vec::new();
+
+                        loop {
                             if !running.load(Ordering::SeqCst) {
                                 break;
                             }
-                            if let Ok(line) = line_result {
-                                on_stderr(&line);
+                            byte_buf.clear();
+                            match reader.read_until(b'\r', &mut byte_buf) {
+                                Ok(0) => break, // EOF
+                                Ok(_) => {
+                                    // FFmpeg 用 \r 更新进度行，每次 \r 都是一段新进度
+                                    if let Ok(line) = String::from_utf8(byte_buf.clone()) {
+                                        let trimmed = line.trim();
+                                        if !trimmed.is_empty() {
+                                            on_stderr(trimmed);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("[ERROR] stderr 读取失败: {}", e);
+                                    break;
+                                }
                             }
                         }
                     }
