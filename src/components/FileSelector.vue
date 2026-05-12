@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { getName } from "@tauri-apps/api/path";
+import { listen } from "@tauri-apps/api/event";
 
 const filePath = ref("");
 const videoSrc = ref("");
-const isDragging = ref(false);
 const duration = ref(0);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const currentTime = ref(0);
@@ -18,7 +17,7 @@ const emit = defineEmits<{
   (e: "time-update", value: number): void;
 }>();
 
-async function handleFileSelected(path: string) {
+function handleFileSelected(path: string) {
   filePath.value = path;
   const assetUrl = convertFileSrc(path);
   videoSrc.value = assetUrl;
@@ -35,7 +34,6 @@ function onTimeUpdate(e: Event) {
   currentTime.value = video.currentTime;
   emit("time-update", video.currentTime);
 
-  // 播放超出结束时间时跳回开始时间循环
   if (rangeEnd.value > 0 && video.currentTime >= rangeEnd.value) {
     video.currentTime = rangeStart.value;
   }
@@ -64,52 +62,21 @@ async function onSelectFile() {
   }
 }
 
-function onDragOver(e: DragEvent) {
-  e.preventDefault();
-  isDragging.value = true;
-}
+// 监听 Rust 层 file-dropped 事件
+let unlistenDrop: (() => void) | null = null;
 
-function onDragLeave(e: DragEvent) {
-  e.preventDefault();
-  isDragging.value = false;
-}
-
-async function onDrop(e: DragEvent) {
-  e.preventDefault();
-  e.stopPropagation();
-  isDragging.value = false;
-
-  const files = e.dataTransfer?.files;
-  if (!files || files.length === 0) return;
-
-  const file = files[0];
-  const validExtensions = ["mp4", "mkv", "avi", "webm", "mov"];
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (!ext || !validExtensions.includes(ext)) return;
-
-  // Tauri 2 拖放文件的 path 属性
-  const path = (file as any).path;
-  if (!path) {
-    console.error("无法获取文件路径");
-    return;
-  }
-  await handleFileSelected(path);
-}
+onMounted(async () => {
+  await listen<string>("file-dropped", (event) => {
+    handleFileSelected(event.payload);
+  });
+});
 
 defineExpose({ filePath, duration, playRange, currentTime });
 </script>
 
 <template>
   <section class="panel">
-    <div
-      class="preview-area"
-      :class="{ 'dragging': isDragging, 'has-preview': videoSrc }"
-      @dragover="onDragOver"
-      @dragleave="onDragLeave"
-      @dragenter="onDragOver"
-      @drop="onDrop"
-      @click="onSelectFile"
-    >
+    <div class="preview-area" :class="{ 'has-preview': videoSrc }" @click="onSelectFile">
       <video
         v-if="videoSrc"
         ref="videoRef"
@@ -150,11 +117,6 @@ defineExpose({ filePath, duration, playRange, currentTime });
   border-color: #999;
 }
 
-.preview-area.dragging {
-  border-color: #333;
-  background: #d0d0d0;
-}
-
 .preview-area.has-preview {
   border-style: solid;
   border-color: #333;
@@ -168,7 +130,6 @@ defineExpose({ filePath, duration, playRange, currentTime });
   height: 100%;
   object-fit: contain;
   background: #000;
-  pointer-events: none;
 }
 
 .preview-placeholder {
