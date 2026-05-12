@@ -171,9 +171,7 @@ async function onGenerate() {
     );
     if (conversionResult.file_info) {
       const durationSec = parseTimeToSec(end) - parseTimeToSec(start);
-      const durationStr = durationSec >= 60
-        ? `${Math.floor(durationSec / 60)}m${Math.round((durationSec % 60) * 10) / 10}s`
-        : `${Math.round(durationSec * 10) / 10}s`;
+      const durationStr = `${Math.round(durationSec * 10) / 10}s`;
       addLog(`导出: ${conversionResult.file_info} · ${durationStr}`);
     }
     resultRef.value = { output_path: previewPath.value, message: conversionResult.message };
