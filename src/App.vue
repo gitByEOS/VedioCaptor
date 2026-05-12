@@ -66,6 +66,11 @@ watch(() => [resultRef.value, logMessages.value.length], async () => {
   window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 });
 
+function parseTimeToSec(t: string): number {
+  const [h, m, s] = t.split(":").map(Number);
+  return (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
+}
+
 function setStatus(s: AppStatus) {
   status.value = s;
   if (s === "validating") {
@@ -73,7 +78,7 @@ function setStatus(s: AppStatus) {
   } else if (s === "converting") {
     addLog("开始转换...");
   } else if (s === "done") {
-    addLog("转换完成。");
+    addLog("转换完成");
   }
 }
 
@@ -164,9 +169,10 @@ async function onGenerate() {
     const conversionResult = await executeConversion(
       presetName, params, file, start, end, previewPath.value,
     );
-    const elapsed = ((Date.now() - taskStartTime) / 1000).toFixed(1);
     if (conversionResult.file_info) {
-      addLog(`导出: ${conversionResult.file_info} · ${elapsed}s`);
+      const 时长秒 = parseTimeToSec(end) - parseTimeToSec(start);
+      const 时长显示 = 时长秒 >= 60 ? `${Math.floor(时长秒 / 60)}分${时长秒 % 60}秒` : `${时长秒}秒`;
+      addLog(`导出: ${conversionResult.file_info} · 时长${时长显示}`);
     }
     resultRef.value = { output_path: previewPath.value, message: conversionResult.message };
     progressRef.value?.markComplete();
