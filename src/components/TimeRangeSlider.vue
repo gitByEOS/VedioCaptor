@@ -13,9 +13,11 @@ const emit = defineEmits<{
   (e: "range-change", start: number, end: number): void;
 }>();
 
-const 精度系数 = 10;
+const 普通精度系数 = 1;
+const 微调精度系数 = 10;
+const 精度系数 = computed(() => 微调模式.value ? 微调精度系数 : 普通精度系数);
 const 开始值 = ref(0);
-const 结束值 = ref(props.总时长秒 * 精度系数);
+const 结束值 = ref(props.总时长秒);
 const 微调模式 = ref(false);
 const 微调滑块Min = ref(0);
 const 微调滑块Max = ref(0);
@@ -24,24 +26,26 @@ watch(
   () => props.总时长秒,
   (newVal) => {
     开始值.value = 0;
-    结束值.value = newVal * 精度系数;
+    结束值.value = newVal;
     微调模式.value = false;
-    emit("range-change", 开始值.value / 精度系数, 结束值.value / 精度系数);
+    emit("range-change", 开始值.value / 普通精度系数, 结束值.value / 普通精度系数);
   }
 );
 
-function 格式化时间(秒数: number): string {
+function 格式化时间(秒数: number, showMs: boolean = false): string {
   const h = Math.floor(秒数 / 3600);
   const m = Math.floor((秒数 % 3600) / 60);
-  const s = 秒数 % 60;
-  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+  const s = Math.floor(秒数 % 60);
+  const ms = Math.round((秒数 - Math.floor(秒数)) * 10);
+  const 基础 = [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+  return showMs ? `${基础}.${ms}` : 基础;
 }
 
-const 开始秒 = computed(() => Math.floor(开始值.value / 精度系数));
-const 结束秒 = computed(() => Math.floor(结束值.value / 精度系数));
-const 开始时间显示 = computed(() => 格式化时间(开始秒.value));
-const 结束时间显示 = computed(() => 格式化时间(结束秒.value));
-const 总时长值 = computed(() => props.总时长秒 * 精度系数);
+const 开始秒 = computed(() => 开始值.value / 精度系数.value);
+const 结束秒 = computed(() => 结束值.value / 精度系数.value);
+const 开始时间显示 = computed(() => 格式化时间(开始秒.value, 微调模式.value));
+const 结束时间显示 = computed(() => 格式化时间(结束秒.value, 微调模式.value));
+const 总时长值 = computed(() => props.总时长秒 * 精度系数.value);
 
 const 当前Min = computed(() => 微调模式.value ? 微调滑块Min.value : 0);
 const 当前Max = computed(() => 微调模式.value ? 微调滑块Max.value : 总时长值.value);
@@ -63,7 +67,7 @@ const 结束百分比 = computed(() => {
 
 const 播放百分比 = computed(() => {
   if (微调模式.value) {
-    const pct = ((props.当前播放秒 * 精度系数 - 当前Min.value) / 当前Span.value) * 100;
+    const pct = ((props.当前播放秒 * 精度系数.value - 当前Min.value) / 当前Span.value) * 100;
     return Math.max(0, Math.min(100, pct));
   }
   return (props.当前播放秒 / props.总时长秒) * 100;
@@ -71,11 +75,11 @@ const 播放百分比 = computed(() => {
 const 正在播放 = computed(() => props.当前播放秒 >= 开始秒.value && props.当前播放秒 <= 结束秒.value);
 
 function 更新开始(value: number) {
-  开始值.value = Math.max(当前Min.value, Math.min(value, 结束值.value - 精度系数));
+  开始值.value = Math.max(当前Min.value, Math.min(value, 结束值.value - 精度系数.value));
 }
 
 function 更新结束(value: number) {
-  结束值.value = Math.min(当前Max.value, Math.max(value, 开始值.value + 精度系数));
+  结束值.value = Math.min(当前Max.value, Math.max(value, 开始值.value + 精度系数.value));
 }
 
 function onSliderChange() {
@@ -84,13 +88,19 @@ function onSliderChange() {
 
 function 切换微调() {
   if (!微调模式.value) {
-    // 进入微调：锁定范围（选中范围 ± 20% 余量）
-    const 选中时长 = 结束秒.value - 开始秒.value;
-    const 余量 = Math.max(选中时长 * 0.2, 1) * 精度系数;
+    // 进入微调：提升精度到0.1s，转换内部值
+    开始值.value = 开始值.value * 微调精度系数;
+    结束值.value = 结束值.value * 微调精度系数;
+    // 锁定范围（选中范围 ± 20% 余量）
+    const 选中时长 = 结束值.value - 开始值.value;
+    const 余量 = Math.max(选中时长 * 0.2, 微调精度系数);
     微调滑块Min.value = Math.max(0, 开始值.value - 余量);
-    微调滑块Max.value = Math.min(总时长值.value, 结束值.value + 余量);
+    微调滑块Max.value = Math.min(props.总时长秒 * 微调精度系数, 结束值.value + 余量);
     微调模式.value = true;
   } else {
+    // 退出微调：降回秒级精度
+    开始值.value = Math.round(开始值.value / 微调精度系数);
+    结束值.value = Math.round(结束值.value / 微调精度系数);
     微调模式.value = false;
   }
 }
@@ -100,8 +110,9 @@ function getRange(): { start: string; end: string } {
 }
 
 function setRange(开始: number, 结束: number) {
-  开始值.value = Math.max(0, Math.min(开始 * 精度系数, 结束值.value - 精度系数));
-  结束值.value = Math.min(总时长值.value, Math.max(结束 * 精度系数, 开始值.value + 精度系数));
+  const coef = 精度系数.value;
+  开始值.value = Math.max(0, Math.min(开始 * coef, 结束值.value - coef));
+  结束值.value = Math.min(props.总时长秒 * coef, Math.max(结束 * coef, 开始值.value + coef));
 }
 
 defineExpose({ getRange, setRange });
