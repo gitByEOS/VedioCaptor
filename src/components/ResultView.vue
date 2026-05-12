@@ -141,6 +141,7 @@ h3 {
 .actions {
   display: flex;
   gap: 8px;
+  justify-content: center;
 }
 .export-btn {
   padding: 8px 20px;
