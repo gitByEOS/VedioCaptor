@@ -73,7 +73,7 @@ function setStatus(s: AppStatus) {
   } else if (s === "converting") {
     addLog("开始转换...");
   } else if (s === "done") {
-    addLog("转换完成");
+    addLog("转换完成。");
   }
 }
 

@@ -47,7 +47,7 @@ function updateProgress(data: ProgressData) {
 
   progress.value = Math.round(data.progress);
   stepName.value = data.step_name;
-  statusText.value = `${data.step_name} (${progress}%)`;
+  statusText.value = `${progress.value}%`;
 }
 
 function resetProgress() {
