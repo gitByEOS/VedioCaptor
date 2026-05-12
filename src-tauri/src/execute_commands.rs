@@ -7,6 +7,7 @@ use crate::pipeline_executor::execute_pipeline_sync_with_progress;
 use crate::types::ConversionResult;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fs;
 
 /// 执行完整转换管线：加载预设 -> 构建命令 -> 执行
 #[tauri::command]
@@ -58,10 +59,14 @@ pub async fn execute_conversion(
     // 5. 调用 on_complete 后处理
     let message = runtime.on_complete(&output_path, &params).unwrap_or(None);
 
+    // 6. 获取输出文件信息
+    let file_info = get_gif_file_info(&output_path);
+
     log::info("转换完成", &output_path);
     Ok(ConversionResult {
         output_path,
         message,
+        file_info,
     })
 }
 
@@ -101,6 +106,38 @@ fn inject_time_range(steps: &mut Vec<Step>, input_path: &str, start: &str, end: 
             }
         }
     }
+}
+
+/// 获取 GIF 文件信息：尺寸 + 文件大小
+fn get_gif_file_info(path: &str) -> Option<String> {
+    let metadata = fs::metadata(path).ok()?;
+    let size_bytes = metadata.len();
+    let size_str = if size_bytes < 1024 {
+        format!("{}B", size_bytes)
+    } else if size_bytes < 1024 * 1024 {
+        format!("{:.1}KB", size_bytes as f64 / 1024.0)
+    } else {
+        format!("{:.1}MB", size_bytes as f64 / (1024.0 * 1024.0))
+    };
+
+    // 用 ffprobe 获取 GIF 尺寸
+    let output = std::process::Command::new("ffprobe")
+        .args([
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=p=0:s=x",
+            path,
+        ])
+        .output()
+        .ok()?;
+
+    let dimensions = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if dimensions.is_empty() {
+        return Some(format!("大小: {}", size_str));
+    }
+
+    Some(format!("{} · {}", dimensions, size_str))
 }
 
 /// 日志模块

@@ -164,6 +164,9 @@ async function onGenerate() {
     const conversionResult = await executeConversion(
       presetName, params, file, start, end, previewPath.value,
     );
+    if (conversionResult.file_info) {
+      addLog(`输出: ${conversionResult.file_info}`);
+    }
     resultRef.value = { output_path: previewPath.value, message: conversionResult.message };
     progressRef.value?.markComplete();
     setStatus("done");

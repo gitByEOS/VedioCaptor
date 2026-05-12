@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core"
 
 export interface ValidateResult { ok: boolean; error?: string }
-export interface ConversionResult { output_path: string; message?: string }
+export interface ConversionResult { output_path: string; message?: string; file_info?: string }
 
 // 调用后端的 validate 命令
 export async function validateParams(preset: string, params: Record<string, any>, inputPath: string): Promise<ValidateResult> {

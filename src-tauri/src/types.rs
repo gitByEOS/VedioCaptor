@@ -12,17 +12,20 @@ pub struct PresetInfo {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ControlDef {
     Slider {
+        key: String,
         label: String,
         min: f64,
         max: f64,
         default: f64,
     },
     Select {
+        key: String,
         label: String,
         values: Vec<String>,
         default: String,
     },
     Number {
+        key: String,
         label: String,
         min: f64,
         max: f64,
@@ -68,4 +71,5 @@ pub struct PresetModule {
 pub struct ConversionResult {
     pub output_path: String,
     pub message: Option<String>,
+    pub file_info: Option<String>,
 }
