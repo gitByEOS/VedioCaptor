@@ -33,6 +33,16 @@ pub enum ControlDef {
     },
 }
 
+impl ControlDef {
+    pub fn key(&self) -> &str {
+        match self {
+            ControlDef::Slider { key, .. }
+            | ControlDef::Select { key, .. }
+            | ControlDef::Number { key, .. } => key,
+        }
+    }
+}
+
 /// 视频输入信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoInfo {

@@ -53,25 +53,28 @@ impl LuaRuntime {
         }
 
         match fs::read_dir(dir_path) {
-            Ok(entries) => entries
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| {
-                    entry
-                        .path()
-                        .extension()
-                        .is_some_and(|ext| ext == "lua")
-                })
-                .filter_map(|entry| {
-                    let path = entry.path();
-                    let id = path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .map(String::from)?;
-                    let content = fs::read_to_string(&path).ok()?;
-                    let name = Self::parse_preset_name(&id, &content);
-                    Some(PresetInfo { id, name })
-                })
-                .collect(),
+            Ok(entries) => {
+                let presets: Vec<PresetInfo> = entries
+                    .filter_map(|entry| entry.ok())
+                    .filter(|entry| {
+                        entry
+                            .path()
+                            .extension()
+                            .is_some_and(|ext| ext == "lua")
+                    })
+                    .filter_map(|entry| {
+                        let path = entry.path();
+                        let id = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .map(String::from)?;
+                        let content = fs::read_to_string(&path).ok()?;
+                        let name = Self::parse_preset_name(&id, &content);
+                        Some(PresetInfo { id, name })
+                    })
+                .collect::<Vec<_>>();
+                presets
+            }
             Err(e) => {
                 log::warn("无法读取预设目录", &e.to_string());
                 vec![]
@@ -286,25 +289,26 @@ fn json_to_lua_value(value: &serde_json::Value, lua: &Lua) -> Value {
 fn parse_controls_table(table: &Table) -> Result<Vec<ControlDef>, String> {
     let mut controls = Vec::new();
 
-    for pair in table.pairs::<mlua::Value, mlua::Value>() {
-        let (_, value) = pair.map_err(|e| format!("解析控件失败: {}", e))?;
+    for pair in table.pairs::<String, mlua::Value>() {
+        let (key, value) = pair.map_err(|e| format!("解析控件失败: {}", e))?;
         if let Value::Table(ctrl) = value {
-            if let Ok(def) = parse_single_control(&ctrl) {
+            if let Ok(def) = parse_single_control(&key, &ctrl) {
                 controls.push(def);
             }
         }
     }
 
+    controls.sort_by(|a, b| a.key().cmp(b.key()));
     Ok(controls)
 }
 
-/// 解析单个控件定义
-fn parse_single_control(table: &Table) -> Result<ControlDef, String> {
+fn parse_single_control(key: &str, table: &Table) -> Result<ControlDef, String> {
     let ctrl_type: String = table.get("type").unwrap_or_else(|_| String::from("number"));
-    let label: String = table.get("label").unwrap_or_default();
+    let label: String = table.get("label").unwrap_or_else(|_| key.to_string());
 
     match ctrl_type.as_str() {
         "slider" => Ok(ControlDef::Slider {
+            key: key.to_string(),
             label,
             min: table.get("min").unwrap_or(0.0),
             max: table.get("max").unwrap_or(100.0),
@@ -314,12 +318,14 @@ fn parse_single_control(table: &Table) -> Result<ControlDef, String> {
             let values = extract_string_array(table, "values");
             let default: String = table.get("default").unwrap_or_default();
             Ok(ControlDef::Select {
+                key: key.to_string(),
                 label,
                 values,
                 default,
             })
         }
         _ => Ok(ControlDef::Number {
+            key: key.to_string(),
             label,
             min: table.get("min").unwrap_or(0.0),
             max: table.get("max").unwrap_or(100.0),

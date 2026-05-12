@@ -9,8 +9,11 @@ interface PresetInfo {
   name: string;
 }
 
+// 预设顺序（前端控制）
+const PRESET_ORDER = ["emoji_make", "clear_demo", "custom_steps"];
+
 const presets = ref<PresetInfo[]>([]);
-const selected = ref("emoji_small");
+const selected = ref("");
 const controls = ref<ControlDef[]>([]);
 const paramValues = ref<Record<string, string | number>>({});
 const loadingPresets = ref(true);
@@ -34,9 +37,30 @@ function setValidateError(msg: string) {
 
 async function loadPresets() {
   try {
-    presets.value = await invoke<PresetInfo[]>("list_presets", {});
+    const raw = await invoke<PresetInfo[]>("list_presets", {});
+    console.log("[DEBUG] 后端返回:", raw.map(p => p.id));
+    console.log("[DEBUG] 前端定义:", PRESET_ORDER);
     errorMsg.value = "";
-    if (presets.value.some(p => p.id === selected.value)) {
+    // 按前端固定顺序排序
+    const ordered: PresetInfo[] = [];
+    for (const id of PRESET_ORDER) {
+      const found = raw.find(p => p.id === id);
+      console.log(`[DEBUG] find "${id}" -> ${found ? found.name : "undefined"}`);
+      if (found) {
+        ordered.push(found);
+      }
+    }
+    // 追加不在预设列表中的预设
+    const known = new Set(PRESET_ORDER);
+    for (const p of raw) {
+      if (!known.has(p.id)) {
+        ordered.push(p);
+      }
+    }
+    presets.value = ordered;
+    console.log("[DEBUG] 排序后:", presets.value.map(p => p.id));
+    if (presets.value.length > 0) {
+      selected.value = presets.value[0].id;
       await loadControls(selected.value);
       emit("change", selected.value);
     }
@@ -71,7 +95,7 @@ async function loadControls(presetName: string) {
 function buildDefaultValues(defs: ControlDef[]): Record<string, string | number> {
   const values: Record<string, string | number> = {};
   for (const ctrl of defs) {
-    values[ctrl.label] = ctrl.default;
+    values[ctrl.key] = ctrl.default;
   }
   return values;
 }
@@ -102,19 +126,19 @@ watch(selected, loadControls);
     <div v-else-if="controls.length > 0" class="param-section">
       <h4>参数列表</h4>
       <div class="param-list">
-        <div v-for="ctrl in controls" :key="ctrl.label" class="param-item">
+        <div v-for="ctrl in controls" :key="ctrl.key" class="param-item">
           <label>{{ ctrl.label }}</label>
           <template v-if="ctrl.type === 'slider'">
-            <input type="range" :min="ctrl.min" :max="ctrl.max" :step="1" v-model.number="paramValues[ctrl.label]" />
-            <span class="value">{{ paramValues[ctrl.label] }}</span>
+            <input type="range" :min="ctrl.min" :max="ctrl.max" :step="1" v-model.number="paramValues[ctrl.key]" />
+            <span class="value">{{ paramValues[ctrl.key] }}</span>
           </template>
           <template v-else-if="ctrl.type === 'select'">
-            <select v-model="paramValues[ctrl.label]">
+            <select v-model="paramValues[ctrl.key]">
               <option v-for="opt in ctrl.values" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </template>
           <template v-else-if="ctrl.type === 'number'">
-            <input type="number" :min="ctrl.min" :max="ctrl.max" v-model.number="paramValues[ctrl.label]" />
+            <input type="number" :min="ctrl.min" :max="ctrl.max" v-model.number="paramValues[ctrl.key]" />
           </template>
         </div>
       </div>
