@@ -164,8 +164,9 @@ async function onGenerate() {
     const conversionResult = await executeConversion(
       presetName, params, file, start, end, previewPath.value,
     );
+    const elapsed = ((Date.now() - taskStartTime) / 1000).toFixed(1);
     if (conversionResult.file_info) {
-      addLog(`输出: ${conversionResult.file_info}`);
+      addLog(`导出: ${conversionResult.file_info} · ${elapsed}s`);
     }
     resultRef.value = { output_path: previewPath.value, message: conversionResult.message };
     progressRef.value?.markComplete();
