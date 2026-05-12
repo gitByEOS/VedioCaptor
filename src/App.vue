@@ -170,9 +170,9 @@ async function onGenerate() {
       presetName, params, file, start, end, previewPath.value,
     );
     if (conversionResult.file_info) {
-      const 时长秒 = parseTimeToSec(end) - parseTimeToSec(start);
-      const 时长显示 = 时长秒 >= 60 ? `${Math.floor(时长秒 / 60)}分${时长秒 % 60}秒` : `${时长秒}秒`;
-      addLog(`导出: ${conversionResult.file_info} · 时长${时长显示}`);
+      const durationSec = parseTimeToSec(end) - parseTimeToSec(start);
+      const durationStr = durationSec >= 60 ? `${Math.floor(durationSec / 60)}m${durationSec % 60}s` : `${durationSec}s`;
+      addLog(`导出: ${conversionResult.file_info} · ${durationStr}`);
     }
     resultRef.value = { output_path: previewPath.value, message: conversionResult.message };
     progressRef.value?.markComplete();
