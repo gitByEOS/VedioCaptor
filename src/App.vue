@@ -13,7 +13,7 @@ import ResultView from "./components/ResultView.vue";
 
 type AppStatus = "idle" | "validating" | "converting" | "done" | "error";
 
-const selectedPreset = ref("");
+const selectedPreset = ref("表情制作");
 const videoDuration = ref(60);
 const currentPlayTime = ref(0);
 const status = ref<AppStatus>("idle");
@@ -133,11 +133,6 @@ async function onGenerate() {
 
   if (!file) {
     showValidation("请先选择视频文件");
-    return;
-  }
-
-  if (!selectedPreset.value) {
-    showValidation("请先选择预设");
     return;
   }
 

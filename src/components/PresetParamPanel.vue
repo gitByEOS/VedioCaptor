@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ControlDef } from "../vite-env";
 
 const presets = ref<string[]>([]);
-const selected = ref("");
+const selected = ref("表情制作");
 const controls = ref<ControlDef[]>([]);
 const paramValues = ref<Record<string, string | number>>({});
 const loadingPresets = ref(true);
@@ -31,6 +31,11 @@ async function loadPresets() {
   try {
     presets.value = await invoke<string[]>("list_presets", {});
     errorMsg.value = "";
+    // 预设加载后自动选中默认项
+    if (presets.value.includes(selected.value)) {
+      await loadControls(selected.value);
+      emit("change", selected.value);
+    }
   } catch (err: unknown) {
     errorMsg.value = `加载预设失败: ${String(err)}`;
     presets.value = [];
