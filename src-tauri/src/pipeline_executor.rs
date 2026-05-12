@@ -99,12 +99,13 @@ pub fn execute_pipeline_sync_with_progress(
         let tx_for_exit = tx.clone();
 
         // 发送步骤开始事件
+        let start_progress = (i as f64 / total as f64) * 100.0;
         let start_event = ProgressEvent {
             step_name: step.step_name.clone(),
             step_index: i,
             total_steps: total,
-            progress: 0.0,
-            message: format!("开始 {}", step.step_name),
+            progress: start_progress,
+            message: format!("开始 {}...", step.step_name),
         };
         let _ = (&app_handle).emit("conversion-progress", &start_event);
 
@@ -124,8 +125,13 @@ pub fn execute_pipeline_sync_with_progress(
                     if msg_type == "line" {
                         error_log.push(data.clone());
                         let event = lua_runtime.parse_progress(&data, i, &step.step_name);
+                        // 映射为全局进度: 当前步骤起点 + 本步骤内占比
+                        let step_base = (i as f64 / total as f64) * 100.0;
+                        let step_progress = event.progress / (total as f64);
+                        let overall_progress = step_base + step_progress;
                         let event = ProgressEvent {
                             total_steps: total,
+                            progress: overall_progress.min(100.0).max(0.0),
                             ..event
                         };
                         let _ = (&app_handle).emit("conversion-progress", &event);
