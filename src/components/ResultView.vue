@@ -86,7 +86,7 @@ async function onExport() {
       <button type="button" class="export-btn" :disabled="exporting" @click="onExport">
         {{ exporting ? "导出中..." : "导出" }}
       </button>
-      <button type="button" class="folder-btn" @click="onOpenFolder">打开缓存目录</button>
+      <button type="button" class="folder-btn" @click="onOpenFolder">查看</button>
     </div>
   </section>
 </template>
