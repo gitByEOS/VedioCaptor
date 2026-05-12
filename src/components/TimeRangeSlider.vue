@@ -105,6 +105,15 @@ function 切换微调() {
   }
 }
 
+function 重置() {
+  if (微调模式.value) {
+    微调模式.value = false;
+  }
+  开始值.value = 0;
+  结束值.value = props.总时长秒;
+  emit("range-change", 0, props.总时长秒);
+}
+
 function getRange(): { start: string; end: string } {
   return { start: 开始时间显示.value, end: 结束时间显示.value };
 }
@@ -120,6 +129,7 @@ defineExpose({ getRange, setRange });
 
 <template>
   <div class="time-range">
+    <button class="reset-btn" @click="重置">重置</button>
     <span class="time-item start">
       <span class="label">开始</span>
       <span class="value">{{ 开始时间显示 }}</span>
@@ -300,6 +310,20 @@ defineExpose({ getRange, setRange });
 }
 
 .fine-toggle:hover {
+  background: #f0f0f0;
+}
+
+.reset-btn {
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+}
+
+.reset-btn:hover {
   background: #f0f0f0;
 }
 </style>
