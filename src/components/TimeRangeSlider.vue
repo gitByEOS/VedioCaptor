@@ -16,12 +16,16 @@ const emit = defineEmits<{
 const 精度系数 = 10;
 const 开始值 = ref(0);
 const 结束值 = ref(props.总时长秒 * 精度系数);
+const 微调模式 = ref(false);
+const 微调滑块Min = ref(0);
+const 微调滑块Max = ref(0);
 
 watch(
   () => props.总时长秒,
   (newVal) => {
     开始值.value = 0;
     结束值.value = newVal * 精度系数;
+    微调模式.value = false;
     emit("range-change", 开始值.value / 精度系数, 结束值.value / 精度系数);
   }
 );
@@ -38,21 +42,57 @@ const 结束秒 = computed(() => Math.floor(结束值.value / 精度系数));
 const 开始时间显示 = computed(() => 格式化时间(开始秒.value));
 const 结束时间显示 = computed(() => 格式化时间(结束秒.value));
 const 总时长值 = computed(() => props.总时长秒 * 精度系数);
-const 开始百分比 = computed(() => (开始值.value / 总时长值.value) * 100);
-const 结束百分比 = computed(() => (结束值.value / 总时长值.value) * 100);
-const 播放百分比 = computed(() => (props.当前播放秒 / props.总时长秒) * 100);
+
+const 当前Min = computed(() => 微调模式.value ? 微调滑块Min.value : 0);
+const 当前Max = computed(() => 微调模式.value ? 微调滑块Max.value : 总时长值.value);
+const 当前Span = computed(() => 当前Max.value - 当前Min.value);
+
+const 开始百分比 = computed(() => {
+  if (微调模式.value) {
+    return ((开始值.value - 当前Min.value) / 当前Span.value) * 100;
+  }
+  return (开始值.value / 总时长值.value) * 100;
+});
+
+const 结束百分比 = computed(() => {
+  if (微调模式.value) {
+    return ((结束值.value - 当前Min.value) / 当前Span.value) * 100;
+  }
+  return (结束值.value / 总时长值.value) * 100;
+});
+
+const 播放百分比 = computed(() => {
+  if (微调模式.value) {
+    const pct = ((props.当前播放秒 * 精度系数 - 当前Min.value) / 当前Span.value) * 100;
+    return Math.max(0, Math.min(100, pct));
+  }
+  return (props.当前播放秒 / props.总时长秒) * 100;
+});
 const 正在播放 = computed(() => props.当前播放秒 >= 开始秒.value && props.当前播放秒 <= 结束秒.value);
 
 function 更新开始(value: number) {
-  开始值.value = Math.min(value, 结束值.value - 精度系数);
+  开始值.value = Math.max(当前Min.value, Math.min(value, 结束值.value - 精度系数));
 }
 
 function 更新结束(value: number) {
-  结束值.value = Math.max(value, 开始值.value + 精度系数);
+  结束值.value = Math.min(当前Max.value, Math.max(value, 开始值.value + 精度系数));
 }
 
 function onSliderChange() {
   emit("range-change", 开始秒.value, 结束秒.value);
+}
+
+function 切换微调() {
+  if (!微调模式.value) {
+    // 进入微调：锁定范围（选中范围 ± 20% 余量）
+    const 选中时长 = 结束秒.value - 开始秒.value;
+    const 余量 = Math.max(选中时长 * 0.2, 1) * 精度系数;
+    微调滑块Min.value = Math.max(0, 开始值.value - 余量);
+    微调滑块Max.value = Math.min(总时长值.value, 结束值.value + 余量);
+    微调模式.value = true;
+  } else {
+    微调模式.value = false;
+  }
 }
 
 function getRange(): { start: string; end: string } {
@@ -89,8 +129,8 @@ defineExpose({ getRange, setRange });
       <input
         type="range"
         class="handle start"
-        :min="0"
-        :max="总时长值"
+        :min="当前Min"
+        :max="当前Max"
         :value="开始值"
         @input="更新开始(Number(($event.target as HTMLInputElement).value))"
         @change="onSliderChange"
@@ -98,8 +138,8 @@ defineExpose({ getRange, setRange });
       <input
         type="range"
         class="handle end"
-        :min="0"
-        :max="总时长值"
+        :min="当前Min"
+        :max="当前Max"
         :value="结束值"
         @input="更新结束(Number(($event.target as HTMLInputElement).value))"
         @change="onSliderChange"
@@ -108,6 +148,7 @@ defineExpose({ getRange, setRange });
     <span class="time-item end">
       <span class="label">结束</span>
       <span class="value">{{ 结束时间显示 }}</span>
+      <button class="fine-toggle" @click="切换微调">{{ 微调模式 ? "返回" : "微调" }}</button>
     </span>
   </div>
 </template>
@@ -234,5 +275,20 @@ defineExpose({ getRange, setRange });
 .handle::-moz-range-track {
   height: 32px;
   background: transparent;
+}
+
+.fine-toggle {
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.fine-toggle:hover {
+  background: #f0f0f0;
 }
 </style>
