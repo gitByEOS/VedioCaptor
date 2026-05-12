@@ -1,5 +1,5 @@
 use crate::lua_runtime::LuaRuntime;
-use crate::types::ControlDef;
+use crate::types::{ControlDef, PresetInfo};
 use std::path::PathBuf;
 use tauri::Manager;
 
@@ -27,9 +27,9 @@ pub fn resolve_presets_dir(app: &tauri::AppHandle) -> String {
     "presets".to_string()
 }
 
-/// 列出目录下所有预设名（不含 .lua 后缀）
+/// 列出预设信息（id + 显示名）
 #[tauri::command]
-pub fn list_presets(app: tauri::AppHandle) -> Vec<String> {
+pub fn list_presets(app: tauri::AppHandle) -> Vec<PresetInfo> {
     let dir = resolve_presets_dir(&app);
     LuaRuntime::scan_presets(&dir)
 }

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::pipeline_executor::Step;
-use crate::types::{ControlDef, ProgressEvent, ValidateResult, VideoInfo};
+use crate::types::{ControlDef, PresetInfo, ProgressEvent, ValidateResult, VideoInfo};
 
 /// Lua 运行时代理
 pub struct LuaRuntime {
@@ -43,8 +43,9 @@ impl LuaRuntime {
         Ok(runtime)
     }
 
-    /// 扫描目录下所有 .lua 文件，返回预设名列表
-    pub fn scan_presets(dir: &str) -> Vec<String> {
+    /// 扫描目录下所有 .lua 文件，读取文件头注释解析显示名
+    /// 注释格式: -- @preset_name: 表情制作
+    pub fn scan_presets(dir: &str) -> Vec<PresetInfo> {
         let dir_path = Path::new(dir);
         if !dir_path.is_dir() {
             log::warn("预设目录不存在", dir);
@@ -61,11 +62,14 @@ impl LuaRuntime {
                         .is_some_and(|ext| ext == "lua")
                 })
                 .filter_map(|entry| {
-                    entry
-                        .path()
+                    let path = entry.path();
+                    let id = path
                         .file_stem()
                         .and_then(|s| s.to_str())
-                        .map(String::from)
+                        .map(String::from)?;
+                    let content = fs::read_to_string(&path).ok()?;
+                    let name = Self::parse_preset_name(&id, &content);
+                    Some(PresetInfo { id, name })
                 })
                 .collect(),
             Err(e) => {
@@ -73,6 +77,20 @@ impl LuaRuntime {
                 vec![]
             }
         }
+    }
+
+    /// 从 Lua 文件头部注释解析显示名
+    fn parse_preset_name(id: &str, content: &str) -> String {
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("-- @preset_name:") {
+                let name = trimmed.trim_start_matches("-- @preset_name:").trim();
+                if !name.is_empty() {
+                    return name.to_string();
+                }
+            }
+        }
+        id.to_string()
     }
 
     /// 调用 Lua 的 get_controls 函数，返回控件定义

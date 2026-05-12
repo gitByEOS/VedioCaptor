@@ -4,8 +4,13 @@ import { ref, watch, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import type { ControlDef } from "../vite-env";
 
-const presets = ref<string[]>([]);
-const selected = ref("表情制作");
+interface PresetInfo {
+  id: string;
+  name: string;
+}
+
+const presets = ref<PresetInfo[]>([]);
+const selected = ref("emoji_small");
 const controls = ref<ControlDef[]>([]);
 const paramValues = ref<Record<string, string | number>>({});
 const loadingPresets = ref(true);
@@ -29,10 +34,9 @@ function setValidateError(msg: string) {
 
 async function loadPresets() {
   try {
-    presets.value = await invoke<string[]>("list_presets", {});
+    presets.value = await invoke<PresetInfo[]>("list_presets", {});
     errorMsg.value = "";
-    // 预设加载后自动选中默认项
-    if (presets.value.includes(selected.value)) {
+    if (presets.value.some(p => p.id === selected.value)) {
       await loadControls(selected.value);
       emit("change", selected.value);
     }
@@ -88,7 +92,7 @@ watch(selected, loadControls);
       <div v-if="loadingPresets" class="status">加载中...</div>
       <select v-else v-model="selected" @change="onPresetChange">
         <option value="" disabled>选择预设</option>
-        <option v-for="p in presets" :key="p" :value="p">{{ p }}</option>
+        <option v-for="p in presets" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>
     </div>
 

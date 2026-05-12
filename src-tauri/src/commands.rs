@@ -3,11 +3,11 @@ use std::collections::HashMap;
 
 use crate::commands_presets::resolve_presets_dir;
 use crate::lua_runtime::LuaRuntime;
-use crate::types::{ControlDef, ValidateResult, VideoInfo};
+use crate::types::{ControlDef, PresetInfo, ValidateResult, VideoInfo};
 
-/// 扫描预设目录，返回预设名列表
+/// 扫描预设目录，返回预设信息列表
 #[tauri::command]
-pub fn scan_presets(app: tauri::AppHandle) -> Vec<String> {
+pub fn scan_presets(app: tauri::AppHandle) -> Vec<PresetInfo> {
     let dir = resolve_presets_dir(&app);
     LuaRuntime::scan_presets(&dir)
 }

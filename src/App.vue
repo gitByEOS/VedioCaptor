@@ -13,7 +13,7 @@ import ResultView from "./components/ResultView.vue";
 
 type AppStatus = "idle" | "validating" | "converting" | "done" | "error";
 
-const selectedPreset = ref("表情制作");
+const selectedPreset = ref("emoji_small");
 const videoDuration = ref(60);
 const currentPlayTime = ref(0);
 const status = ref<AppStatus>("idle");

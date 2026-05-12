@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+/// 预设信息：id 用于内部标识，name 用于前端显示
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetInfo {
+    pub id: String,
+    pub name: String,
+}
+
 /// 控件类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
