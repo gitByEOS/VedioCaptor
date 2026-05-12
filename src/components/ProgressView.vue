@@ -11,10 +11,14 @@ const logBoxRef = ref<HTMLDivElement | null>(null);
 // 日志更新时自动滚动到底部
 watch(() => props.logMessages?.length, async () => {
   await nextTick();
+  scrollToBottom();
+}, { immediate: true });
+
+function scrollToBottom() {
   if (logBoxRef.value) {
     logBoxRef.value.scrollTop = logBoxRef.value.scrollHeight;
   }
-});
+}
 
 interface ProgressData {
   step_name: string;

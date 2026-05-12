@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getName } from "@tauri-apps/api/path";
 
 const filePath = ref("");
 const videoSrc = ref("");
@@ -75,18 +76,24 @@ function onDragLeave(e: DragEvent) {
 
 async function onDrop(e: DragEvent) {
   e.preventDefault();
+  e.stopPropagation();
   isDragging.value = false;
 
   const files = e.dataTransfer?.files;
-  if (files && files.length > 0) {
-    const file = files[0];
-    const validExtensions = ["mp4", "mkv", "avi", "webm", "mov"];
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext && validExtensions.includes(ext)) {
-      const path = (file as any).path || file.name;
-      await handleFileSelected(path);
-    }
+  if (!files || files.length === 0) return;
+
+  const file = files[0];
+  const validExtensions = ["mp4", "mkv", "avi", "webm", "mov"];
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (!ext || !validExtensions.includes(ext)) return;
+
+  // Tauri 2 拖放文件的 path 属性
+  const path = (file as any).path;
+  if (!path) {
+    console.error("无法获取文件路径");
+    return;
   }
+  await handleFileSelected(path);
 }
 
 defineExpose({ filePath, duration, playRange, currentTime });
@@ -99,6 +106,7 @@ defineExpose({ filePath, duration, playRange, currentTime });
       :class="{ 'dragging': isDragging, 'has-preview': videoSrc }"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
+      @dragenter="onDragOver"
       @drop="onDrop"
       @click="onSelectFile"
     >
@@ -160,6 +168,7 @@ defineExpose({ filePath, duration, playRange, currentTime });
   height: 100%;
   object-fit: contain;
   background: #000;
+  pointer-events: none;
 }
 
 .preview-placeholder {

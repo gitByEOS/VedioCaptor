@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { appCacheDir, join } from "@tauri-apps/api/path";
 import { mkdir } from "@tauri-apps/plugin-fs";
@@ -58,6 +58,12 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlisten?.();
+});
+
+// 新 UI 出现时自动滚动到底部
+watch(() => [resultRef.value, logMessages.value.length], async () => {
+  await nextTick();
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 });
 
 function setStatus(s: AppStatus) {

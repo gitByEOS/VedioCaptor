@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 结果展示组件：GIF 预览 + 导出按钮
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { dirname } from "@tauri-apps/api/path";
@@ -17,6 +17,18 @@ const emit = defineEmits<{
 }>();
 
 const exporting = ref(false);
+const imageLoaded = ref(false);
+const imageError = ref(false);
+const cacheBustUrl = ref("");
+
+// gifPath 变化时重置加载状态，并加时间戳破缓存
+watch(() => props.gifPath, (newPath) => {
+  imageLoaded.value = false;
+  imageError.value = false;
+  if (newPath) {
+    cacheBustUrl.value = `${getPreviewUrl(newPath)}?t=${Date.now()}`;
+  }
+}, { immediate: true });
 
 function getPreviewUrl(path: string): string {
   return convertFileSrc(path);
@@ -59,7 +71,15 @@ async function onExport() {
   <section v-if="gifPath" class="panel">
     <h3>预览</h3>
     <div class="preview">
-      <img :src="getPreviewUrl(gifPath)" alt="GIF 预览" />
+      <div v-if="!imageLoaded && !imageError" class="preview-loading">加载中...</div>
+      <img
+        v-show="imageLoaded"
+        :src="cacheBustUrl"
+        alt="GIF 预览"
+        @load="imageLoaded = true"
+        @error="imageError = true"
+      />
+      <div v-if="imageError" class="preview-error">预览加载失败</div>
     </div>
     <p v-if="message" class="result-message">{{ message }}</p>
     <div class="actions">
@@ -97,6 +117,18 @@ h3 {
 .preview img {
   max-width: 100%;
   display: block;
+}
+.preview-loading {
+  padding: 20px;
+  color: #999;
+  font-size: 13px;
+  text-align: center;
+}
+.preview-error {
+  padding: 20px;
+  color: #c0392b;
+  font-size: 13px;
+  text-align: center;
 }
 .result-message {
   margin: 8px 0;
