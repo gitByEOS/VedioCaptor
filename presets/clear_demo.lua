@@ -59,3 +59,28 @@ function build_command_pipeline(params, input_path, output_path)
         },
     }
 end
+
+-- 解析 FFmpeg 进度输出
+function parse_progress(line, step_index, step_name, duration_sec)
+    -- 匹配 time= 格式: time=00:01:23.45 或 time=123.45
+    local time_match = line:match("time=(%d+:%d+:%d+%.?%d*)")
+    if time_match then
+        local h, m, s = time_match:match("(%d+):(%d+):(%d+%.?%d*)")
+        if h and m and s then
+            local current_sec = tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s)
+            if duration_sec > 0 then
+                local pct = (current_sec / duration_sec) * 100
+                return { progress = math.min(pct, 100), message = string.format("%.1f%% (%.1fs/%.1fs)", pct, current_sec, duration_sec) }
+            end
+        end
+    end
+
+    -- 匹配 frame= 格式作为备选
+    local frame_match = line:match("frame=%s*(%d+)")
+    if frame_match then
+        local frame = tonumber(frame_match)
+        return { progress = 0, message = string.format("帧 %d", frame) }
+    end
+
+    return { progress = 0, message = "" }
+end

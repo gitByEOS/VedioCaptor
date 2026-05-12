@@ -37,6 +37,11 @@ pub struct Step {
     pub command: String,
 }
 
+/// 执行管线配置
+pub struct PipelineConfig {
+    pub duration_sec: f64, // 视频时长（秒）
+}
+
 /// 异步执行管线，逐步骤执行
 pub fn execute_pipeline(
     steps: Vec<Step>,
@@ -84,6 +89,7 @@ pub fn execute_pipeline_sync_with_progress(
     app_handle: AppHandle,
     lua_runtime: &LuaRuntime,
     steps: Vec<Step>,
+    config: PipelineConfig,
 ) -> (bool, Vec<String>) {
     let mut error_log = Vec::new();
     let total = steps.len();
@@ -124,7 +130,7 @@ pub fn execute_pipeline_sync_with_progress(
                 Ok((msg_type, data)) => {
                     if msg_type == "line" {
                         error_log.push(data.clone());
-                        let event = lua_runtime.parse_progress(&data, i, &step.step_name);
+                        let event = lua_runtime.parse_progress(&data, i, &step.step_name, config.duration_sec);
                         // 映射为全局进度: 当前步骤起点 + 本步骤内占比
                         let step_base = (i as f64 / total as f64) * 100.0;
                         let step_progress = event.progress / (total as f64);

@@ -2,12 +2,23 @@ use tauri::AppHandle;
 
 use crate::commands_presets::resolve_presets_dir;
 use crate::lua_runtime::LuaRuntime;
-use crate::pipeline_executor::Step;
-use crate::pipeline_executor::execute_pipeline_sync_with_progress;
+use crate::pipeline_executor::{Step, PipelineConfig, execute_pipeline_sync_with_progress};
 use crate::types::ConversionResult;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
+
+/// 解析时间字符串为秒数 (格式: HH:MM:SS 或 HH:MM:SS.ss)
+fn parse_time_to_sec(time: &str) -> f64 {
+    let parts: Vec<&str> = time.split(':').collect();
+    if parts.len() != 3 {
+        return 0.0;
+    }
+    let h: f64 = parts[0].parse().unwrap_or(0.0);
+    let m: f64 = parts[1].parse().unwrap_or(0.0);
+    let s: f64 = parts[2].parse().unwrap_or(0.0);
+    h * 3600.0 + m * 60.0 + s
+}
 
 /// 执行完整转换管线：加载预设 -> 构建命令 -> 执行
 #[tauri::command]
@@ -24,6 +35,9 @@ pub async fn execute_conversion(
     let preset_path = format!("{}/{}.lua", dir, preset_name);
 
     log::info("开始转换", &format!("预设={}, 输入={}", preset_path, input_path));
+
+    // 计算时长
+    let duration_sec = parse_time_to_sec(&end_time) - parse_time_to_sec(&start_time);
 
     // 1. 加载 Lua 预设
     let runtime = LuaRuntime::load_preset(&preset_path)?;
@@ -44,7 +58,8 @@ pub async fn execute_conversion(
     }
 
     // 4. 同步执行管线（带进度推送）
-    let (success, error_log) = execute_pipeline_sync_with_progress(app_handle.clone(), &runtime, steps);
+    let config = PipelineConfig { duration_sec };
+    let (success, error_log) = execute_pipeline_sync_with_progress(app_handle.clone(), &runtime, steps, config);
 
     if !success {
         let error_msg = if error_log.is_empty() {

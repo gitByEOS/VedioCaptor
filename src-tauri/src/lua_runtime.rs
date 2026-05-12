@@ -188,7 +188,7 @@ impl LuaRuntime {
 
     /// 调用 Lua 的 parse_progress 解析 ffmpeg stderr 行
     /// 若 Lua 中未定义该函数或解析失败，返回默认进度 0
-    pub fn parse_progress(&self, line: &str, step_index: usize, step_name: &str) -> ProgressEvent {
+    pub fn parse_progress(&self, line: &str, step_index: usize, step_name: &str, duration_sec: f64) -> ProgressEvent {
         let func: Result<mlua::Function, _> = self.lua.globals().get("parse_progress");
         match func {
             Ok(func) => {
@@ -196,6 +196,7 @@ impl LuaRuntime {
                     mlua::Value::String(self.lua.create_string(line).expect("创建 Lua 字符串失败")),
                     mlua::Value::Integer(step_index as i64),
                     mlua::Value::String(self.lua.create_string(step_name).expect("创建 Lua 字符串失败")),
+                    mlua::Value::Number(duration_sec),
                 ];
                 let args = mlua::MultiValue::from_vec(args);
                 match func.call::<mlua::Value>(args) {
