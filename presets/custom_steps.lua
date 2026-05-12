@@ -1,4 +1,4 @@
--- @preset_name: 自定义步骤
+-- @preset_name: 自定义
 --- 自定义步骤预设 ---
 -- 支持亮度对比度调节的滤镜预处理
 
@@ -8,7 +8,7 @@ function get_controls()
             type = "slider",
             label = "最大宽度",
             min = 240,
-            max = 800,
+            max = 1920,
             default = 480,
         },
         saturation = {
@@ -43,7 +43,7 @@ function get_controls()
             type = "slider",
             label = "编码质量",
             min = 0,
-            max = 50,
+            max = 51,
             default = 23,
         },
     }
@@ -68,8 +68,8 @@ function validate(params, _info)
     if sharpness < 0 or sharpness > 20 then
         return { ok = false, error = "锐化范围为 0 到 20" }
     end
-    if crf < 0 or crf > 50 then
-        return { ok = false, error = "编码质量范围为 0 到 50" }
+    if crf < 0 or crf > 51 then
+        return { ok = false, error = "编码质量范围为 0 到 51" }
     end
 
     return { ok = true }
