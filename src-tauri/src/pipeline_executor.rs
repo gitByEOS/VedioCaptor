@@ -130,7 +130,14 @@ pub fn execute_pipeline_sync_with_progress(
                 Ok((msg_type, data)) => {
                     if msg_type == "line" {
                         error_log.push(data.clone());
+                        // DEBUG: 打印 FFmpeg stderr 行
+                        if data.contains("frame=") || data.contains("time=") {
+                            eprintln!("[DEBUG] FFmpeg stderr: {}", data);
+                        }
                         let event = lua_runtime.parse_progress(&data, i, &step.step_name, config.duration_sec);
+                        if event.progress > 0 || !event.message.is_empty() {
+                            eprintln!("[DEBUG] 进度事件: progress={}, message={}", event.progress, event.message);
+                        }
                         // 映射为全局进度: 当前步骤起点 + 本步骤内占比
                         let step_base = (i as f64 / total as f64) * 100.0;
                         let step_progress = event.progress / (total as f64);
