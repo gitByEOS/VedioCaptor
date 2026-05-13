@@ -213,13 +213,13 @@ defineExpose({ getRange, setRange });
   order: 1;
   flex: 1;
   position: relative;
-  height: 32px;
+  height: 48px;
   min-width: 100px;
 }
 
 .triangle {
   position: absolute;
-  bottom: 4px;
+  bottom: 12px;
   width: 0;
   height: 0;
   border-left: 6px solid transparent;
@@ -261,7 +261,7 @@ defineExpose({ getRange, setRange });
 .handle {
   position: absolute;
   width: 100%;
-  height: 32px;
+  height: 48px;
   top: 0;
   left: 0;
   margin: 0;
@@ -271,14 +271,14 @@ defineExpose({ getRange, setRange });
 }
 
 .handle::-webkit-slider-runnable-track {
-  height: 32px;
+  height: 48px;
   background: transparent;
 }
 
 .handle::-webkit-slider-thumb {
   appearance: none;
   width: 16px;
-  height: 32px;
+  height: 48px;
   background: transparent;
   pointer-events: auto;
   cursor: grab;
@@ -286,7 +286,7 @@ defineExpose({ getRange, setRange });
 
 .handle::-moz-range-thumb {
   width: 16px;
-  height: 32px;
+  height: 48px;
   background: transparent;
   border: none;
   pointer-events: auto;
@@ -294,7 +294,7 @@ defineExpose({ getRange, setRange });
 }
 
 .handle::-moz-range-track {
-  height: 32px;
+  height: 48px;
   background: transparent;
 }
 

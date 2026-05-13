@@ -110,7 +110,6 @@ pub fn execute_pipeline_sync_with_progress(
 
         let step_active = Arc::new(AtomicBool::new(true));
         let active_ref = Arc::clone(&step_active);
-        let step_total = total;
         let estimated = Duration::from_secs_f64((config.duration_sec / 60.0) * 6.0);
         let start_time = Instant::now();
 

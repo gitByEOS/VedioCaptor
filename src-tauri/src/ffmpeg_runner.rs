@@ -37,7 +37,6 @@ impl FfmpegRunner {
             return;
         }
 
-        // 使用预设的 ffmpeg_path 或直接使用命令中的路径
         let executable = if parts[0] == "ffmpeg" || parts[0] == "ffprobe" {
             self.ffmpeg_path.clone().unwrap_or_else(|| parts[0].clone())
         } else {
@@ -57,13 +56,11 @@ impl FfmpegRunner {
                 let child_ref = Arc::clone(&self.child);
                 let running = Arc::clone(&self.running);
 
-                // 存储 child 到 Mutex
                 {
                     let mut guard = child_ref.lock().unwrap();
                     *guard = Some(child);
                 }
 
-                // 启动 stderr 读取线程
                 let child_ref = Arc::clone(&self.child);
 
                 std::thread::spawn(move || {
@@ -82,9 +79,8 @@ impl FfmpegRunner {
                             }
                             byte_buf.clear();
                             match reader.read_until(b'\r', &mut byte_buf) {
-                                Ok(0) => break, // EOF
+                                Ok(0) => break,
                                 Ok(_) => {
-                                    // FFmpeg 用 \r 更新进度行，每次 \r 都是一段新进度
                                     if let Ok(line) = String::from_utf8(byte_buf.clone()) {
                                         let trimmed = line.trim();
                                         if !trimmed.is_empty() {
@@ -100,7 +96,6 @@ impl FfmpegRunner {
                         }
                     }
 
-                    // 等待进程退出
                     let success = {
                         let mut guard = child_ref.lock().unwrap();
                         if let Some(child) = guard.as_mut() {
@@ -125,7 +120,8 @@ impl FfmpegRunner {
         }
     }
 
-    /// 终止正在运行的 ffmpeg 进程
+    /// 终止正在运行的 ffmpeg 进程（预留，用于未来 UI 取消按钮）
+    #[allow(dead_code)]
     pub fn kill(&self) {
         self.running.store(false, Ordering::SeqCst);
         let mut guard = self.child.lock().unwrap();
@@ -135,13 +131,9 @@ impl FfmpegRunner {
         }
         *guard = None;
     }
-
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
-    }
 }
 
-/// 简单的命令行分词，按空格分割（不处理引号内的空格）
+/// 简单的命令行分词
 fn shell_split(cmd: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut current = String::new();

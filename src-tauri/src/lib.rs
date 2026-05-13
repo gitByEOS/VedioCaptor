@@ -9,6 +9,24 @@ mod types;
 
 use tauri::{Emitter, Manager, WindowEvent};
 
+/// 关闭 App 时杀掉所有 ffmpeg 子进程
+fn kill_all_ffmpeg() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("pkill")
+            .arg("-f")
+            .arg("ffmpeg")
+            .output();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Linux/Windows fallback
+        let _ = std::process::Command::new("killall")
+            .arg("ffmpeg")
+            .output();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -25,6 +43,9 @@ pub fn run() {
                             let _ = window.emit("file-dropped", p);
                         }
                     }
+                }
+                if let WindowEvent::CloseRequested { .. } = event {
+                    kill_all_ffmpeg();
                 }
             });
             Ok(())

@@ -87,11 +87,5 @@ function parse_progress(line, step_index, step_name, duration_sec)
         end
     end
 
-    local frame_match = line:match("frame=%s*(%d+)")
-    if frame_match then
-        local frame = tonumber(frame_match)
-        return { progress = 0, message = string.format("帧 %d", frame) }
-    end
-
     return { progress = 0, message = "" }
 end

@@ -113,7 +113,6 @@ function collectForm() {
 function showValidation(msg: string) {
   errorInfo.value = msg;
   addLog(`错误: ${msg}`);
-  presetParamRef.value?.setValidateError(msg);
   setStatus("error");
 }
 
@@ -123,12 +122,9 @@ async function onGenerate() {
   logMessages.value = [];
   taskStartTime = Date.now();
 
-  // 初始化预览路径
   const cacheDirPath = await appCacheDir();
   previewPath.value = await join(cacheDirPath, "preview.gif");
-  addLog(`预览路径: ${previewPath.value}`);
 
-  // 确保缓存目录存在
   try {
     await mkdir(cacheDirPath, { recursive: true });
   } catch {
@@ -147,7 +143,6 @@ async function onGenerate() {
     return;
   }
 
-  // 打印任务详情
   addLog(`文件: ${file}`);
   addLog(`时间: ${start} → ${end}`);
   addLog(`预设: ${selectedPreset.value}`);

@@ -19,20 +19,15 @@ const paramValues = ref<Record<string, string | number>>({});
 const loadingPresets = ref(true);
 const loadingControls = ref(false);
 const errorMsg = ref("");
-const validateErrorMsg = ref("");
 
 const emit = defineEmits<{
   change: [preset: string];
 }>();
 
-defineExpose({ getParams, setValidateError });
+defineExpose({ getParams });
 
 function getParams(): Record<string, string | number> {
   return { ...paramValues.value };
-}
-
-function setValidateError(msg: string) {
-  validateErrorMsg.value = msg;
 }
 
 async function loadPresets() {
@@ -101,7 +96,6 @@ function buildDefaultValues(defs: ControlDef[]): Record<string, string | number>
 }
 
 function onPresetChange() {
-  validateErrorMsg.value = "";
   emit("change", selected.value);
 }
 
@@ -143,8 +137,6 @@ watch(selected, loadControls);
         </div>
       </div>
     </div>
-
-    <div v-if="validateErrorMsg" class="validate-error">{{ validateErrorMsg }}</div>
   </section>
 </template>
 
@@ -233,15 +225,5 @@ h4 {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 13px;
-}
-.validate-error {
-  color: #e53e3e;
-  font-size: 13px;
-  font-weight: 600;
-  margin-top: 8px;
-  padding: 8px 12px;
-  background: #fff5f5;
-  border: 1px solid #fed7d7;
-  border-radius: 4px;
 }
 </style>
