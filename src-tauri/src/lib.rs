@@ -44,7 +44,7 @@ pub fn run() {
                         }
                     }
                 }
-                if let WindowEvent::CloseRequested { .. } = event {
+                if matches!(event, WindowEvent::CloseRequested { .. }) {
                     kill_all_ffmpeg();
                 }
             });

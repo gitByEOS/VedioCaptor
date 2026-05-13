@@ -70,30 +70,3 @@ presets/
 5. 校验通过 → 调用 execute_conversion → 推送 conversion-progress 事件
 6. 进度更新 → ProgressView 实时更新
 7. 完成 → ResultView 展示 GIF + 打开文件夹
-
-## 验收标准
-
-### 单元测试
-```bash
-bash submit/test-agent-j.sh
-```
-
-### 端到端测试步骤
-1. 启动应用 → 确认所有组件正常渲染
-2. 选择视频文件 → 确认路径显示正确
-3. 输入起止时间 → 确认结束时间 > 起始时间校验生效
-4. 选择预设 → 确认参数面板动态加载对应控件
-5. 点击「生成 GIF」→ 确认按钮进入禁用状态
-6. 观察进度条 → 确认步骤名称和百分比实时更新
-7. 等待完成 → 确认结果区域展示 GIF + 「打开文件夹」按钮
-8. 错误场景 → 不选文件/预设时点击，确认错误提示展示
-
-### 全链路检查清单
-- [x] 所有核心组件存在 (FileSelector, PresetSelector, ParamPanel, ProgressView, ResultView)
-- [x] 所有 Tauri commands 注册 (validate, execute_conversion, list_presets 等)
-- [x] 所有 Lua 预设完整 (emoji_small, clear_demo, custom_steps)
-- [x] 数据流串联 (ConversionResult, execute_conversion, conversion-progress)
-- [x] 状态机管理 (idle → validating → converting → done/error)
-- [x] 时间范围校验 (结束 > 起始)
-- [x] 按钮禁用 (转换中不可重复点击)
-- [x] 错误边界 (捕获错误并友好展示)

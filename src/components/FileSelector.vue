@@ -63,7 +63,6 @@ async function onSelectFile() {
 }
 
 // 监听 Rust 层 file-dropped 事件
-let unlistenDrop: (() => void) | null = null;
 
 onMounted(async () => {
   await listen<string>("file-dropped", (event) => {
