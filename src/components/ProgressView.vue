@@ -25,15 +25,16 @@ interface ProgressData {
   step_index: number;
   total_steps: number;
   progress: number;
+  fake_progress: number;
   message: string;
 }
 
 const progress = ref(0);
 const stepName = ref("等待中");
-const statusText = ref("等待任务启动...");
 const isRunning = ref(false);
 
 let currentStepIndex = -1;
+let hasReal = false;
 
 // 接收真实进度事件
 function updateProgress(data: ProgressData) {
@@ -43,28 +44,34 @@ function updateProgress(data: ProgressData) {
 
   if (data.step_index !== currentStepIndex) {
     currentStepIndex = data.step_index;
+    hasReal = false;
   }
 
-  progress.value = Math.round(data.progress);
+  const real = data.progress ?? 0;
+  const fake = data.fake_progress ?? 0;
+  if (real > 0) {
+    hasReal = true;
+    progress.value = Math.round(Math.max(real, progress.value));
+  } else if (!hasReal && fake > progress.value) {
+    progress.value = Math.round(fake);
+  }
   stepName.value = data.step_name;
-  statusText.value = `${progress.value}%`;
 }
 
 function resetProgress() {
   progress.value = 0;
   stepName.value = "等待中";
-  statusText.value = "等待任务启动...";
   isRunning.value = false;
   currentStepIndex = -1;
+  hasReal = false;
 }
 
 function markComplete() {
   progress.value = 100;
-  statusText.value = "完成";
   isRunning.value = false;
 }
 
-defineExpose({ updateProgress, resetProgress, markComplete, progress, statusText });
+defineExpose({ updateProgress, resetProgress, markComplete, progress });
 </script>
 
 <template>
@@ -74,7 +81,6 @@ defineExpose({ updateProgress, resetProgress, markComplete, progress, statusText
       <span class="step-name">{{ stepName }}</span>
       <span class="percent">{{ progress }}%</span>
     </div>
-    <div class="status">{{ statusText }}</div>
     <div class="progress-bar">
       <div class="progress-fill" :style="{ width: progress + '%' }"></div>
     </div>
@@ -111,11 +117,6 @@ h3 {
   color: #666;
   font-weight: 600;
 }
-.status {
-  font-size: 13px;
-  color: #555;
-  margin-bottom: 8px;
-}
 .progress-bar {
   height: 8px;
   background: #e0e0e0;
@@ -126,7 +127,7 @@ h3 {
 .progress-fill {
   height: 100%;
   background: #333;
-  transition: width 0.3s;
+  transition: width 2s ease;
 }
 .log-box {
   background: #1a1a1a;

@@ -75,7 +75,6 @@ end
 
 -- 解析 FFmpeg 进度输出
 function parse_progress(line, step_index, step_name, duration_sec)
-    -- 匹配 time= 格式: time=00:01:23.45 或 time=123.45
     local time_match = line:match("time=(%d+:%d+:%d+%.?%d*)")
     if time_match then
         local h, m, s = time_match:match("(%d+):(%d+):(%d+%.?%d*)")
@@ -88,7 +87,6 @@ function parse_progress(line, step_index, step_name, duration_sec)
         end
     end
 
-    -- 匹配 frame= 格式作为备选
     local frame_match = line:match("frame=%s*(%d+)")
     if frame_match then
         local frame = tonumber(frame_match)

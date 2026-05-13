@@ -65,6 +65,7 @@ pub struct ProgressEvent {
     pub step_index: usize,
     pub total_steps: usize,
     pub progress: f64,
+    pub fake_progress: f64,
     pub message: String,
 }
 

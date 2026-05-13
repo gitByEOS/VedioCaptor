@@ -1,4 +1,8 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use std::path::PathBuf;
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -104,6 +108,18 @@ pub fn execute_pipeline_sync_with_progress(
         let app_handle = app_handle.clone();
         let tx_for_exit = tx.clone();
 
+        let step_active = Arc::new(AtomicBool::new(true));
+        let active_ref = Arc::clone(&step_active);
+        let step_total = total;
+        let estimated = Duration::from_secs_f64((config.duration_sec / 60.0) * 6.0);
+        let start_time = Instant::now();
+
+        std::thread::spawn(move || {
+            while active_ref.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(300));
+            }
+        });
+
         // 发送步骤开始事件
         let start_progress = (i as f64 / total as f64) * 100.0;
         let start_event = ProgressEvent {
@@ -111,6 +127,7 @@ pub fn execute_pipeline_sync_with_progress(
             step_index: i,
             total_steps: total,
             progress: start_progress,
+            fake_progress: 0.0,
             message: format!("开始 {}...", step.step_name),
         };
         let _ = (&app_handle).emit("conversion-progress", &start_event);
@@ -125,46 +142,79 @@ pub fn execute_pipeline_sync_with_progress(
             },
         );
 
+        // FFmpeg 启动后立即发一条 fake 进度，避免无 stderr 的步骤（如 palettegen）空白
+        let _ = (&app_handle).emit(
+            "conversion-progress",
+            &ProgressEvent {
+                step_name: step.step_name.clone(),
+                step_index: i,
+                total_steps: total,
+                progress: 0.0,
+                fake_progress: (i as f64 / total as f64) * 100.0 + 0.1,
+                message: "".to_string(),
+            },
+        );
+
         loop {
-            match rx.recv() {
+            let elapsed = start_time.elapsed();
+            let fake_pct = (elapsed.as_secs_f64() / estimated.as_secs_f64() * 98.0).min(98.0);
+            let fake_progress = ((i as f64 / total as f64) * 100.0 + fake_pct / total as f64).min(100.0);
+
+            // 用超时接收，让没 stderr 的步骤也能定期 emit fake 进度
+            match rx.recv_timeout(Duration::from_millis(300)) {
                 Ok((msg_type, data)) => {
                     if msg_type == "line" {
                         error_log.push(data.clone());
-                        // DEBUG: 打印 FFmpeg stderr 行
-                        if data.contains("frame=") || data.contains("time=") {
-                            eprintln!("[DEBUG] FFmpeg stderr: {}", data);
-                        }
                         let event = lua_runtime.parse_progress(&data, i, &step.step_name, config.duration_sec);
                         if event.progress > 0.0 || !event.message.is_empty() {
-                            eprintln!("[DEBUG] 进度事件: progress={}, message={}", event.progress, event.message);
+                            let step_base = (i as f64 / total as f64) * 100.0;
+                            let step_progress = event.progress / (total as f64);
+                            let overall_progress = step_base + step_progress;
+                            let event = ProgressEvent {
+                                total_steps: total,
+                                progress: overall_progress.min(100.0).max(0.0),
+                                fake_progress,
+                                ..event
+                            };
+                            eprintln!("[PROG] real step={i} real={overall_progress:.1}% fake={fake_progress:.1}%");
+                            let _ = (&app_handle).emit("conversion-progress", &event);
                         }
-                        // 映射为全局进度: 当前步骤起点 + 本步骤内占比
-                        let step_base = (i as f64 / total as f64) * 100.0;
-                        let step_progress = event.progress / (total as f64);
-                        let overall_progress = step_base + step_progress;
-                        let event = ProgressEvent {
-                            total_steps: total,
-                            progress: overall_progress.min(100.0).max(0.0),
-                            ..event
-                        };
-                        let _ = (&app_handle).emit("conversion-progress", &event);
                     } else if msg_type == "exit" {
                         if data != "true" {
+                            step_active.store(false, Ordering::SeqCst);
                             return (false, error_log);
                         }
-                        // 发送步骤完成事件
+                        step_active.store(false, Ordering::SeqCst);
+                        let step_done_base = ((i + 1) as f64 / total as f64) * 100.0;
                         let done_event = ProgressEvent {
                             step_name: step.step_name.clone(),
                             step_index: i,
                             total_steps: total,
-                            progress: 100.0,
+                            progress: step_done_base.min(100.0),
+                            fake_progress: 0.0,
                             message: format!("完成 {}", step.step_name),
                         };
                         let _ = (&app_handle).emit("conversion-progress", &done_event);
                         break;
                     }
                 }
-                Err(_) => {
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    // 300ms 没收到 stderr，发 fake 进度
+                    eprintln!("[PROG] fake step={i} fake={fake_progress:.1}%");
+                    let _ = (&app_handle).emit(
+                        "conversion-progress",
+                        &ProgressEvent {
+                            step_name: step.step_name.clone(),
+                            step_index: i,
+                            total_steps: total,
+                            progress: 0.0,
+                            fake_progress,
+                            message: "".to_string(),
+                        },
+                    );
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    step_active.store(false, Ordering::SeqCst);
                     return (false, error_log);
                 }
             }

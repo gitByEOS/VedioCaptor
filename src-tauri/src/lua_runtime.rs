@@ -208,6 +208,7 @@ impl LuaRuntime {
                             step_index,
                             total_steps: 0,
                             progress,
+                            fake_progress: 0.0,
                             message,
                         }
                     }
@@ -216,6 +217,7 @@ impl LuaRuntime {
                         step_index,
                         total_steps: 0,
                         progress: 0.0,
+                        fake_progress: 0.0,
                         message: line.to_string(),
                     },
                 }
@@ -225,6 +227,7 @@ impl LuaRuntime {
                 step_index,
                 total_steps: 0,
                 progress: 0.0,
+                fake_progress: 0.0,
                 message: String::new(),
             },
         }

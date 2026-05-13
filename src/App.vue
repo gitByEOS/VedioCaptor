@@ -48,6 +48,7 @@ onMounted(async () => {
       step_index: payload.step_index as number,
       total_steps: payload.total_steps as number,
       progress: payload.progress as number,
+      fake_progress: (payload.fake_progress ?? 0) as number,
       message: payload.message as string,
     });
     if (payload.message) {
