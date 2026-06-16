@@ -51,6 +51,7 @@ pub async fn execute_conversion(
     // 3. 为所有步骤添加 ffmpeg 前缀，对使用原始输入的步骤注入时间参数
     ensure_ffmpeg_prefix(&mut steps);
     inject_time_range(&mut steps, &input_path, &start_time, &end_time);
+    inject_crop_filter(&mut steps, &params);
 
     // 打印每步命令到终端日志
     for (i, step) in steps.iter().enumerate() {
@@ -123,7 +124,59 @@ fn inject_time_range(steps: &mut Vec<Step>, input_path: &str, start: &str, end: 
     }
 }
 
-/// 获取 GIF 文件信息：尺寸 + 文件大小
+/// 注入裁剪滤镜：若 params 包含 crop_x/y/w/h，在所有滤镜链最前面 prepend crop
+fn inject_crop_filter(steps: &mut Vec<Step>, params: &HashMap<String, Value>) {
+    let crop_x = params.get("crop_x").and_then(|v| v.as_i64());
+    let crop_y = params.get("crop_y").and_then(|v| v.as_i64());
+    let crop_w = params.get("crop_w").and_then(|v| v.as_i64());
+    let crop_h = params.get("crop_h").and_then(|v| v.as_i64());
+
+    let (Some(cx), Some(cy), Some(cw), Some(ch)) = (crop_x, crop_y, crop_w, crop_h) else {
+        return;
+    };
+
+    let crop_filter = format!("crop={}:{}:{}:{}", cw, ch, cx, cy);
+
+    for step in steps.iter_mut() {
+        if let Some(new_command) = prepend_to_filter_chain(&step.command, &crop_filter) {
+            step.command = new_command;
+        }
+    }
+}
+
+/// 在命令的 -vf 或 -lavfi 滤镜值最前面 prepend 一个滤镜
+fn prepend_to_filter_chain(command: &str, filter: &str) -> Option<String> {
+    for flag in &["-vf ", "-lavfi "] {
+        if let Some(pos) = command.find(flag) {
+            let after_flag = &command[pos + flag.len()..];
+            if after_flag.starts_with('"') {
+                // 引号内的滤镜值
+                if let Some(end_quote) = after_flag[1..].find('"') {
+                    let filter_value = &after_flag[1..end_quote + 1];
+                    let new_filter = format!("{},{}", filter, filter_value);
+                    return Some(format!(
+                        "{}\"{}\"{}",
+                        &command[..pos + flag.len()],
+                        new_filter,
+                        &command[pos + flag.len() + 1 + end_quote + 1..]
+                    ));
+                }
+            } else {
+                // 无引号的单 token 滤镜值
+                let token_end = after_flag.find(' ').unwrap_or(after_flag.len());
+                let filter_value = &after_flag[..token_end];
+                let new_filter = format!("{},{}", filter, filter_value);
+                return Some(format!(
+                    "{}{}{}",
+                    &command[..pos + flag.len()],
+                    new_filter,
+                    &command[pos + flag.len() + token_end..]
+                ));
+            }
+        }
+    }
+    None
+}
 fn get_gif_file_info(path: &str) -> Option<String> {
     let metadata = fs::metadata(path).ok()?;
     let size_bytes = metadata.len();

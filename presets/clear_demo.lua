@@ -28,6 +28,18 @@ function get_controls()
 end
 
 function validate(_params, _info)
+    -- 裁剪参数校验
+    if _params["crop_w"] then
+        if _params["crop_x"] + _params["crop_w"] > _info.width then
+            return { ok = false, error = "裁剪区域超出视频宽度" }
+        end
+        if _params["crop_y"] + _params["crop_h"] > _info.height then
+            return { ok = false, error = "裁剪区域超出视频高度" }
+        end
+        if _params["crop_w"] < 16 or _params["crop_h"] < 16 then
+            return { ok = false, error = "裁剪区域至少 16x16" }
+        end
+    end
     return { ok = true }
 end
 

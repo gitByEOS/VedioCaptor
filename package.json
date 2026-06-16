@@ -1,7 +1,7 @@
 {
   "name": "VideoCaptor",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -23,5 +23,6 @@
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
     "vue-tsc": "^2.1.10"
-  }
+  },
+  "packageManager": "npm@11.17.0"
 }

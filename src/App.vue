@@ -107,6 +107,16 @@ function collectForm() {
   const file = fileSelectorRef.value?.filePath ?? "";
   const timeRange = timeSliderRef.value?.getRange() ?? { start: "00:00:00", end: "00:00:10" };
   const params = presetParamRef.value?.getParams() ?? {};
+
+  // 注入裁剪参数
+  const crop = fileSelectorRef.value?.cropRegion;
+  if (crop) {
+    (params as Record<string, unknown>).crop_x = crop.x;
+    (params as Record<string, unknown>).crop_y = crop.y;
+    (params as Record<string, unknown>).crop_w = crop.width;
+    (params as Record<string, unknown>).crop_h = crop.height;
+  }
+
   return { file, start: timeRange.start, end: timeRange.end, params };
 }
 

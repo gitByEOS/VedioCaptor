@@ -3,6 +3,14 @@ import { ref, onMounted } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
+import CropOverlay from "./CropOverlay.vue";
+
+interface CropRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 const filePath = ref("");
 const videoSrc = ref("");
@@ -11,6 +19,7 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const currentTime = ref(0);
 const rangeStart = ref(0);
 const rangeEnd = ref(0);
+const cropRegion = ref<CropRegion | null>(null);
 
 const emit = defineEmits<{
   (e: "duration", value: number): void;
@@ -19,6 +28,7 @@ const emit = defineEmits<{
 
 function handleFileSelected(path: string) {
   filePath.value = path;
+  cropRegion.value = null; // 切换视频时清除裁剪
   const assetUrl = convertFileSrc(path);
   videoSrc.value = assetUrl;
 }
@@ -62,6 +72,14 @@ async function onSelectFile() {
   }
 }
 
+function onCropChange(c: CropRegion | null) {
+  cropRegion.value = c;
+}
+
+function onChangeVideo() {
+  onSelectFile();
+}
+
 // 监听 Rust 层 file-dropped 事件
 
 onMounted(async () => {
@@ -70,12 +88,12 @@ onMounted(async () => {
   });
 });
 
-defineExpose({ filePath, duration, playRange, currentTime });
+defineExpose({ filePath, duration, playRange, currentTime, cropRegion });
 </script>
 
 <template>
   <section class="panel">
-    <div class="preview-area" :class="{ 'has-preview': videoSrc }" @click="onSelectFile">
+    <div class="preview-area" :class="{ 'has-preview': videoSrc }" @click="!videoSrc && onSelectFile()">
       <video
         v-if="videoSrc"
         ref="videoRef"
@@ -87,6 +105,12 @@ defineExpose({ filePath, duration, playRange, currentTime });
         @loadedmetadata="onVideoLoaded"
         @timeupdate="onTimeUpdate"
       />
+      <CropOverlay
+        v-if="videoSrc"
+        :video-ref="videoRef"
+        @crop-change="onCropChange"
+      />
+      <button v-if="videoSrc" class="change-video-btn" @click.stop="onChangeVideo">更换视频</button>
       <div v-else class="preview-placeholder">
         <span>选择文件或拖拽视频到此处</span>
       </div>
@@ -142,5 +166,23 @@ defineExpose({ filePath, duration, playRange, currentTime });
   justify-content: center;
   color: #888;
   font-size: 14px;
+}
+
+.change-video-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.change-video-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
 }
 </style>

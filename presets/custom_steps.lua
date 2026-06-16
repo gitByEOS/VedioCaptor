@@ -72,6 +72,19 @@ function validate(params, _info)
         return { ok = false, error = "编码质量范围为 0 到 51" }
     end
 
+    -- 裁剪参数校验
+    if params["crop_w"] then
+        if params["crop_x"] + params["crop_w"] > _info.width then
+            return { ok = false, error = "裁剪区域超出视频宽度" }
+        end
+        if params["crop_y"] + params["crop_h"] > _info.height then
+            return { ok = false, error = "裁剪区域超出视频高度" }
+        end
+        if params["crop_w"] < 16 or params["crop_h"] < 16 then
+            return { ok = false, error = "裁剪区域至少 16x16" }
+        end
+    end
+
     return { ok = true }
 end
 
