@@ -20,6 +20,8 @@ const crop = ref<CropRegion | null>(null);
 
 // 拖拽模式
 type DragMode = "idle" | "drawing" | "move" | "resize";
+type ResizeHandle = "nw" | "ne" | "sw" | "se";
+
 const HANDLE_CURSORS: Record<ResizeHandle, string> = {
   nw: "nwse-resize",
   ne: "nesw-resize",

@@ -32,8 +32,7 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../presets/**/*": "presets",
-      "../node_modules/@ffmpeg-installer/darwin-arm64/ffmpeg": "ffmpeg"
+      "../presets/**/*": "presets"
     },
     "icon": [
       "icons/32x32.png",
