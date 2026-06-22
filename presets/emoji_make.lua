@@ -28,8 +28,8 @@ function get_controls()
 end
 
 function validate(params, _info)
-    if _info.duration > 15 and params["fps"] and params["fps"] > 15 then
-        return { ok = false, error = "长视频建议降低帧率" }
+    if _info.duration > 120 and params["fps"] and params["fps"] > 15 then
+        return { ok = false, error = "超过 120 秒建议降低帧率" }
     end
     -- 裁剪参数校验
     if params["crop_w"] then
@@ -68,7 +68,7 @@ function build_command_pipeline(params, input_path, output_path)
             desc = "生成调色板",
             args = {
                 "-i", input_path,
-                "-vf", string.format("scale=%d:-1:flags=lanczos,palettegen=max_colors=%d", width, palette_colors),
+                "-vf", string.format("fps=%d,scale=%d:-1:flags=lanczos,palettegen=max_colors=%d", fps, width, palette_colors),
                 "-y", palette_path,
             },
         },
@@ -77,8 +77,7 @@ function build_command_pipeline(params, input_path, output_path)
             args = {
                 "-i", input_path,
                 "-i", palette_path,
-                "-lavfi", string.format("scale=%d:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer", width),
-                "-r", tostring(fps),
+                "-lavfi", string.format("fps=%d,scale=%d:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer", fps, width),
                 "-y", output_path,
             },
         },

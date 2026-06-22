@@ -24,6 +24,11 @@ fn resolve_ffmpeg_path(app: &AppHandle) -> Option<String> {
     // 开发模式：从 node_modules 获取
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let manifest_path = PathBuf::from(manifest_dir);
+        let dev_ffmpeg = manifest_path.join("resources/ffmpeg");
+        if dev_ffmpeg.exists() {
+            return Some(dev_ffmpeg.to_string_lossy().to_string());
+        }
+
         let project_dir = manifest_path.parent().unwrap();
         let npm_ffmpeg = project_dir.join("node_modules/@ffmpeg-installer/darwin-arm64/ffmpeg");
         if npm_ffmpeg.exists() {

@@ -51,6 +51,13 @@ pub struct VideoInfo {
     pub height: u32,
 }
 
+/// 浏览器可播放的预览视频
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreviewVideo {
+    pub preview_path: String,
+    pub video_info: VideoInfo,
+}
+
 /// 参数校验结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateResult {

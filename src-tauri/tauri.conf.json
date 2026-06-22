@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "VideoCaptor",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "identifier": "com.eos.videocaptor",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run prepare:ffmpeg && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run prepare:ffmpeg && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -18,11 +18,11 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost data:; media-src 'self' asset: https://asset.localhost data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'",
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost https://asset.localhost data:; media-src 'self' asset: http://asset.localhost https://asset.localhost data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'",
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["**"],
+          "allow": ["$HOME/**", "$DOWNLOAD/**", "$VIDEO/**", "$DOCUMENT/**", "$DESKTOP/**", "$APPCACHE/**"],
           "deny": []
         }
       }
@@ -32,7 +32,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../presets/**/*": "presets"
+      "../presets/**/*": "presets",
+      "resources/ffmpeg": "ffmpeg"
     },
     "icon": [
       "icons/32x32.png",

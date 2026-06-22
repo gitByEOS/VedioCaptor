@@ -5,6 +5,7 @@ mod ffmpeg_commands;
 mod ffmpeg_runner;
 mod lua_runtime;
 mod pipeline_executor;
+mod preview_commands;
 mod types;
 
 use tauri::{Emitter, Manager, WindowEvent};
@@ -59,6 +60,7 @@ pub fn run() {
             ffmpeg_commands::run_ffmpeg,
             ffmpeg_commands::run_pipeline,
             execute_commands::execute_conversion,
+            preview_commands::prepare_video_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

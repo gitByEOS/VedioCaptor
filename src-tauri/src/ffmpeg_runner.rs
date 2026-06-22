@@ -37,7 +37,7 @@ impl FfmpegRunner {
             return;
         }
 
-        let executable = if parts[0] == "ffmpeg" || parts[0] == "ffprobe" {
+        let executable = if parts[0] == "ffmpeg" {
             self.ffmpeg_path.clone().unwrap_or_else(|| parts[0].clone())
         } else {
             parts[0].clone()

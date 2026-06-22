@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { appCacheDir, join } from "@tauri-apps/api/path";
 import { mkdir } from "@tauri-apps/plugin-fs";
-import { validateParams, executeConversion, type ConversionResult } from "./api";
+import { validateParams, executeConversion, type ConversionResult, type VideoInfo } from "./api";
 import { isValidTimeRange } from "./utils";
 import FileSelector from "./components/FileSelector.vue";
 import TimeRangeSlider from "./components/TimeRangeSlider.vue";
@@ -15,6 +15,7 @@ type AppStatus = "idle" | "validating" | "converting" | "done" | "error";
 
 const selectedPreset = ref("");
 const videoDuration = ref(60);
+const videoInfo = ref<VideoInfo>({ duration: 0, width: 0, height: 0 });
 const currentPlayTime = ref(0);
 const status = ref<AppStatus>("idle");
 const errorInfo = ref("");
@@ -26,6 +27,7 @@ const resultRef = ref<ConversionResult | null>(null);
 const logMessages = ref<string[]>([]);
 const previewPath = ref("");
 let taskStartTime = 0;
+let shouldSkipNextRangePreview = false;
 
 let unlisten: (() => void) | null = null;
 
@@ -92,7 +94,14 @@ function onPresetChange(preset: string) {
 }
 
 function onVideoDuration(duration: number) {
+  if (duration > 0 && duration !== videoDuration.value) {
+    shouldSkipNextRangePreview = true;
+  }
   videoDuration.value = duration;
+}
+
+function onVideoInfo(info: VideoInfo) {
+  videoInfo.value = info;
 }
 
 function onTimeUpdate(time: number) {
@@ -100,7 +109,13 @@ function onTimeUpdate(time: number) {
 }
 
 function onRangeChange(start: number, end: number) {
-  fileSelectorRef.value?.playRange(start, end);
+  if (shouldSkipNextRangePreview) {
+    shouldSkipNextRangePreview = false;
+    fileSelectorRef.value?.playRange(start, end);
+    return;
+  }
+
+  void fileSelectorRef.value?.prepareRangePreview(start, end);
 }
 
 function collectForm() {
@@ -133,7 +148,7 @@ async function onGenerate() {
   taskStartTime = Date.now();
 
   const cacheDirPath = await appCacheDir();
-  previewPath.value = await join(cacheDirPath, "preview.gif");
+  previewPath.value = await join(cacheDirPath, `preview-${Date.now()}.gif`);
 
   try {
     await mkdir(cacheDirPath, { recursive: true });
@@ -145,6 +160,11 @@ async function onGenerate() {
 
   if (!file) {
     showValidation("请先选择视频文件");
+    return;
+  }
+
+  if (videoInfo.value.duration <= 0 || videoInfo.value.width <= 0 || videoInfo.value.height <= 0) {
+    showValidation("视频元数据未加载完成");
     return;
   }
 
@@ -160,7 +180,9 @@ async function onGenerate() {
 
   setStatus("validating");
 
-  const validateResult = await validateParams(selectedPreset.value, params, file);
+  const selectedDuration = parseTimeToSec(end) - parseTimeToSec(start);
+  const validateInfo = { ...videoInfo.value, duration: selectedDuration };
+  const validateResult = await validateParams(selectedPreset.value, params, validateInfo);
   if (!validateResult.ok) {
     showValidation(validateResult.error ?? "参数校验失败");
     return;
@@ -203,7 +225,7 @@ function onExported(savePath: string) {
     </header>
 
     <main class="main">
-      <FileSelector ref="fileSelectorRef" @duration="onVideoDuration" @time-update="onTimeUpdate" />
+      <FileSelector ref="fileSelectorRef" @duration="onVideoDuration" @video-info="onVideoInfo" @time-update="onTimeUpdate" />
       <TimeRangeSlider ref="timeSliderRef" :总时长秒="videoDuration" :当前播放秒="currentPlayTime" @range-change="onRangeChange" />
       <PresetParamPanel ref="presetParamRef" @change="onPresetChange" />
 
@@ -226,7 +248,7 @@ function onExported(savePath: string) {
     />
       <ResultView
         v-if="resultRef"
-        :gif-path="previewPath"
+        :gif-path="resultRef.output_path"
         :message="resultRef.message"
         @exported="onExported"
       />

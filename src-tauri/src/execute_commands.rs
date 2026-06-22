@@ -89,38 +89,112 @@ pub async fn execute_conversion(
 /// 为所有步骤添加 ffmpeg 前缀
 fn ensure_ffmpeg_prefix(steps: &mut Vec<Step>) {
     for step in steps {
-        if !step.command.starts_with("ffmpeg") && !step.command.starts_with("ffprobe") {
+        if !step.command.starts_with("ffmpeg") {
             step.command = format!("ffmpeg {}", step.command);
         }
     }
 }
 
-/// 对所有使用原始输入文件的步骤注入 ffmpeg 时间参数（-ss/-to）
+/// 对所有使用原始输入文件的步骤注入 ffmpeg 时间参数（-ss/-t）
 fn inject_time_range(steps: &mut Vec<Step>, input_path: &str, start: &str, end: &str) {
     if start.is_empty() && end.is_empty() {
         return;
     }
 
-    let mut time_args = String::new();
-    if !start.is_empty() {
-        time_args.push_str(&format!("-ss {}", start));
-    }
-    if !end.is_empty() {
-        if !time_args.is_empty() {
-            time_args.push(' ');
-        }
-        time_args.push_str(&format!("-to {}", end));
-    }
+    let duration_sec = parse_time_to_sec(end) - parse_time_to_sec(start);
 
     for step in steps.iter_mut() {
-        // 只对包含原始输入文件的步骤注入时间参数
-        if step.command.contains(&format!("-i {}", input_path)) {
-            if step.command.starts_with("ffmpeg ") {
-                step.command = format!("ffmpeg {} {}", time_args, &step.command[7..]);
-            } else {
-                step.command = format!("ffmpeg {} {}", time_args, step.command);
-            }
+        let parts = split_command(&step.command);
+        if let Some(new_parts) = inject_time_args(parts, input_path, start, duration_sec) {
+            step.command = join_command(&new_parts);
         }
+    }
+}
+
+fn inject_time_args(
+    parts: Vec<String>,
+    input_path: &str,
+    start: &str,
+    duration_sec: f64,
+) -> Option<Vec<String>> {
+    let mut new_parts = Vec::with_capacity(parts.len() + 4);
+    let mut i = 0;
+    let mut injected = false;
+
+    while i < parts.len() {
+        if !injected && parts[i] == "-i" && parts.get(i + 1).is_some_and(|p| p == input_path) {
+            if !start.is_empty() {
+                new_parts.push("-ss".to_string());
+                new_parts.push(start.to_string());
+            }
+            if duration_sec > 0.0 {
+                new_parts.push("-t".to_string());
+                new_parts.push(format_seconds(duration_sec));
+            }
+            new_parts.push(parts[i].clone());
+            new_parts.push(parts[i + 1].clone());
+            injected = true;
+            i += 2;
+            continue;
+        }
+
+        new_parts.push(parts[i].clone());
+        i += 1;
+    }
+
+    injected.then_some(new_parts)
+}
+
+fn format_seconds(seconds: f64) -> String {
+    let formatted = format!("{:.3}", seconds);
+    formatted.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+fn split_command(command: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut in_quote = false;
+    let mut quote_char = '\0';
+
+    for ch in command.chars() {
+        match ch {
+            '"' | '\'' if !in_quote => {
+                in_quote = true;
+                quote_char = ch;
+            }
+            '"' | '\'' if in_quote && ch == quote_char => {
+                in_quote = false;
+                quote_char = '\0';
+            }
+            ' ' if !in_quote => {
+                if !current.is_empty() {
+                    result.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if !current.is_empty() {
+        result.push(current);
+    }
+
+    result
+}
+
+fn join_command(parts: &[String]) -> String {
+    parts
+        .iter()
+        .map(|part| quote_command_part(part))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn quote_command_part(part: &str) -> String {
+    if part.is_empty() || part.chars().any(char::is_whitespace) {
+        format!("\"{}\"", part.replace('"', "\\\""))
+    } else {
+        part.to_string()
     }
 }
 
@@ -188,24 +262,7 @@ fn get_gif_file_info(path: &str) -> Option<String> {
         format!("{:.1}MB", size_bytes as f64 / (1024.0 * 1024.0))
     };
 
-    // 用 ffprobe 获取 GIF 尺寸
-    let output = std::process::Command::new("ffprobe")
-        .args([
-            "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=width,height",
-            "-of", "csv=p=0:s=x",
-            path,
-        ])
-        .output()
-        .ok()?;
-
-    let dimensions = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if dimensions.is_empty() {
-        return Some(format!("大小: {}", size_str));
-    }
-
-    Some(format!("{} · {}", dimensions, size_str))
+    Some(format!("大小: {}", size_str))
 }
 
 /// 日志模块
@@ -215,5 +272,46 @@ mod log {
     }
     pub fn error(msg: &str, detail: &str) {
         eprintln!("[ERROR] {}: {}", msg, detail);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn injects_selected_range_for_quoted_input_path() {
+        let input_path = "/tmp/movie clips/电影.mkv";
+        let mut steps = vec![Step {
+            step_name: "生成调色板".to_string(),
+            command: format!("ffmpeg -i \"{}\" -vf fps=10 -y /tmp/out.gif", input_path),
+        }];
+
+        inject_time_range(&mut steps, input_path, "00:01:10", "00:01:25");
+
+        assert_eq!(
+            steps[0].command,
+            "ffmpeg -ss 00:01:10 -t 15 -i \"/tmp/movie clips/电影.mkv\" -vf fps=10 -y /tmp/out.gif"
+        );
+    }
+
+    #[test]
+    fn injects_selected_range_only_for_original_video_input() {
+        let input_path = "/tmp/movie clips/电影.mkv";
+        let palette_path = "/tmp/palette image.png";
+        let mut steps = vec![Step {
+            step_name: "使用调色板生成 GIF".to_string(),
+            command: format!(
+                "ffmpeg -i \"{}\" -i \"{}\" -lavfi paletteuse -y /tmp/out.gif",
+                input_path, palette_path
+            ),
+        }];
+
+        inject_time_range(&mut steps, input_path, "00:00:03.5", "00:00:14");
+
+        assert_eq!(
+            steps[0].command,
+            "ffmpeg -ss 00:00:03.5 -t 10.5 -i \"/tmp/movie clips/电影.mkv\" -i \"/tmp/palette image.png\" -lavfi paletteuse -y /tmp/out.gif"
+        );
     }
 }

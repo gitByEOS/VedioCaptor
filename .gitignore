@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 submit
+src-tauri/resources/ffmpeg
 
 # Editor directories and files
 .vscode

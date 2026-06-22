@@ -63,7 +63,7 @@ function build_command_pipeline(params, input_path, output_path)
             desc = "直接转 GIF",
             args = {
                 "-i", input_path,
-                "-vf", string.format("scale=%d:-1:flags=lanczos,fps=%d", width, fps),
+                "-vf", string.format("fps=%d,scale=%d:-1:flags=lanczos", fps, width),
                 "-c:v", "gif",
                 "-compression_level", tostring(crf),
                 "-y", output_path,
