@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-14'
+          - platform: 'macos-15'
             target: 'aarch64-apple-darwin'
             args: '--target aarch64-apple-darwin --bundles dmg'
           - platform: 'ubuntu-22.04'
@@ -74,6 +74,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+          TAURI_BUNDLER_DMG_IGNORE_CI: false
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
